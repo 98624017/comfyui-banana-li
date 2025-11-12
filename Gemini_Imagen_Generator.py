@@ -582,7 +582,7 @@ class BananaImageNode:
     def base64_to_tensor_parallel(self, base64_strings: List[str],
                                   log_prefix: Optional[str] = None,
                                   max_workers: Optional[int] = None) -> torch.Tensor:
-        """并发解码多张图片，可选自定义日志前缀"""
+        """并发解码多张图片,可选自定义日志前缀"""
         # 安全的列表空值检查,避免tensor布尔值歧义
         if not isinstance(base64_strings, list) or len(base64_strings) == 0:
             return torch.zeros((1, 64, 64, 3), dtype=torch.float32)
@@ -595,24 +595,37 @@ class BananaImageNode:
 
         # 使用线程池并发解码
         self._ensure_not_interrupted()
-        with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+        executor = ThreadPoolExecutor(max_workers=effective_workers)
+        try:
             future_to_index = {executor.submit(self.base64_to_tensor_single, b64): i 
                              for i, b64 in enumerate(base64_strings)}
             
             # 按顺序收集结果
             results = [None] * len(base64_strings)
-            for future in as_completed(future_to_index):
-                index = future_to_index[future]
-                try:
-                    self._ensure_not_interrupted()
-                    results[index] = future.result()
-                except comfy.model_management.InterruptProcessingException:
-                    raise
-                except Exception as e:
-                    logger.error(f"图片{index+1}解码异常: {str(e)}")
-                    results[index] = np.zeros((64, 64, 3), dtype=np.float32)
+            try:
+                for future in as_completed(future_to_index):
+                    index = future_to_index[future]
+                    try:
+                        self._ensure_not_interrupted()
+                        results[index] = future.result()
+                    except comfy.model_management.InterruptProcessingException:
+                        # 检测到中断，立即取消所有未完成的任务
+                        for pending in future_to_index:
+                            pending.cancel()
+                        raise
+                    except Exception as e:
+                        logger.error(f"图片{index+1}解码异常: {str(e)}")
+                        results[index] = np.zeros((64, 64, 3), dtype=np.float32)
 
-            images = [r for r in results if r is not None]
+                images = [r for r in results if r is not None]
+            except comfy.model_management.InterruptProcessingException:
+                # 确保在中断时关闭线程池
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise
+        finally:
+            # 确保线程池被关闭
+            if not executor._shutdown:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         decode_time = time.time() - decode_start
         logger.success(f"并发解码 {len(images)} 张图片完成，耗时: {decode_time:.2f}s")
@@ -1036,8 +1049,8 @@ class BananaImageNode:
                 overall_timeout = connect_timeout + read_timeout + 30
                 try:
                     for future in as_completed(future_to_index, timeout=overall_timeout):
-                        self._ensure_not_interrupted()
                         try:
+                            self._ensure_not_interrupted()
                             # as_completed 已保证完成，无需再加 result 超时
                             result = future.result()
                             results.append(result)
@@ -1059,6 +1072,8 @@ class BananaImageNode:
                             else:
                                 pbar.update(1)
                         except comfy.model_management.InterruptProcessingException:
+                            # 检测到中断，取消所有未完成的任务
+                            logger.warning(f"检测到中断信号，正在取消剩余任务...")
                             for pending in future_to_index:
                                 pending.cancel()
                             raise
