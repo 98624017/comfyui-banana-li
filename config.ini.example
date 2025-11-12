@@ -1,0 +1,11 @@
+[gemini]
+# 你的 Gemini API Key（必填）
+# 获取方式：https://aistudio.google.com/app/apikey
+# 或使用 OpenAI 代理服务
+api_key = YOUR_API_KEY_HERE
+
+# Token 换算人民币调节系数（请勿调整，影响准确性）
+balance_cost_factor = 0.5
+
+# 最大并发工作线程数（建议 4-8，根据你的机器性能调整）
+max_workers = 8

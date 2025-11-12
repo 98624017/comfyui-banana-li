@@ -1,0 +1,54 @@
+# Python 缓存和编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.venv
+
+# 敏感配置文件（包含 API Key）
+config.ini
+
+# IDE 配置文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 测试和临时文件
+test_*.py
+test_*.py.bak
+test_*.py.tmp
+*.bak
+*.tmp
+verify_integration.py
+
+# 项目工具目录
+.serena/
+.spec-workflow/
+openspec/
+
+# 文档和开发笔记（如果不想公开）
+AGENTS.md
+token-usage.md
+test_checklist.md
+
+# 日志文件
+*.log
+
+# 其他临时文件
+CON
+.pytest_cache/
+.coverage
+htmlcov/
