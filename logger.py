@@ -7,6 +7,7 @@
 import sys
 import time
 import threading
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -34,12 +35,12 @@ class ColorScheme:
         prefix = ColorScheme.BOLD if bold else ""
         return f"{prefix}{color}{text}{ColorScheme.RESET}"
 
+    _ANSI_PATTERN = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
     @staticmethod
     def strip_color(text: str) -> str:
         """移除颜色代码（用于计算实际长度）"""
-        import re
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-        return ansi_escape.sub('', text)
+        return ColorScheme._ANSI_PATTERN.sub('', text)
 
 
 # ==================== Unicode字符宽度计算 ====================
@@ -218,6 +219,8 @@ class ProgressBar:
 class ThreadSafeLogger:
     """线程安全的日志系统 - 标准模式"""
 
+    _THREAD_PATTERN = re.compile(r'(\d+)')
+
     def __init__(self):
         self.lock = threading.Lock()
         self._enable_color = True
@@ -244,8 +247,7 @@ class ThreadSafeLogger:
             thread_name = "[Main]".ljust(8)
         else:
             # 提取数字部分，如 "Thread-7" -> "T-7", "ThreadPoolExecutor-0_0" -> "T-0"
-            import re
-            match = re.search(r'(\d+)', thread)
+            match = self._THREAD_PATTERN.search(thread)
             if match:
                 thread_name = f"[T-{match.group(1)}]".ljust(8)
             else:

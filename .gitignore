@@ -17,6 +17,7 @@ ENV/
 
 # 敏感配置文件（包含 API Key）
 config.ini
+tests/.env.banana.test
 
 # IDE 配置文件
 .vscode/
@@ -52,3 +53,9 @@ CON
 .pytest_cache/
 .coverage
 htmlcov/
+MODEL_INVESTIGATION.md
+NETWORK_TIMEOUT_DIAGNOSIS.md
+RETRY_STRATEGY.md
+VALIDATION_REPORT.md
+PERFORMANCE_OPTIMIZATION_REVISED.md
+PERFORMANCE_OPTIMIZATION.md

@@ -10,7 +10,7 @@ import re
 import random
 import time
 import textwrap
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed, wait, FIRST_COMPLETED
 import threading
 import os
 import configparser
@@ -41,15 +41,17 @@ except ImportError:
 
 
 
-def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None):
+def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None,
+                       fast_fail_threshold=15.0):
     """
-    智能重试装饰器，支持指数退避
-    
+    智能重试装饰器，区分快速失败和慢速失败
+
     Args:
         tries: 最大重试次数（包括初次尝试）
         delay: 初始延迟时间（秒）
         backoff: 退避倍数
         retriable_exceptions: 可重试的异常类型列表，默认为网络相关异常
+        fast_fail_threshold: 快速失败阈值（秒），超过此时间的失败不重试
     """
     if retriable_exceptions is None:
         # 默认重试可恢复的错误（5xx、网络超时、连接中断）
@@ -62,46 +64,90 @@ def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None):
             ConnectionResetError,  # 连接被重置
             BrokenPipeError,  # 管道破裂
         )
-    
+
     def decorator(func):
         from functools import wraps
-        
+
         @wraps(func)
         def wrapper(*args, **kwargs):
             mtries, mdelay = tries, delay
-            
+
             for attempt in range(mtries):
+                attempt_start = time.time()
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
+                    attempt_duration = time.time() - attempt_start
+                    error_str = str(e)
+
                     # 检查是否是可重试的异常
                     is_retriable = False
+                    error_type = "未知错误"
 
-                    # 检查是否是5xx错误
-                    if isinstance(e, Exception) and "API返回 5" in str(e):
+                    # 检查超时错误 - 如果耗时超过阈值,不重试
+                    if "请求超时" in error_str or isinstance(e, requests.exceptions.Timeout):
+                        if attempt_duration >= fast_fail_threshold:
+                            logger.error(f"请求超时 ({attempt_duration:.1f}s)，耗时过长，不重试")
+                            raise
                         is_retriable = True
-                    # 检查连接中断相关错误(IncompleteRead等)
-                    elif "IncompleteRead" in str(type(e)) or "IncompleteRead" in str(e):
+                        error_type = "超时错误(快速)"
+
+                    # 检查 5xx 服务器错误 - 只有快速返回的才重试
+                    elif "API返回 5" in error_str:
+                        if attempt_duration >= fast_fail_threshold:
+                            logger.error(f"服务器错误 ({attempt_duration:.1f}s)，服务器处理时间过长，不重试")
+                            raise
                         is_retriable = True
+                        error_type = "5xx服务器错误"
+
+                    # 检查 429 限流错误 - 值得重试
+                    elif "API返回 429" in error_str or "rate limit" in error_str.lower():
+                        is_retriable = True
+                        error_type = "API限流"
+                        mdelay = max(mdelay, 5)  # 限流时至少等5秒
+
+                    # 检查 502/503/504 网关错误 - 临时性问题,值得重试
+                    elif any(code in error_str for code in ["502", "503", "504"]):
+                        if attempt_duration < fast_fail_threshold:
+                            is_retriable = True
+                            error_type = "网关错误"
+
+                    # 检查连接中断相关错误
+                    elif "IncompleteRead" in str(type(e)) or "IncompleteRead" in error_str:
+                        is_retriable = True
+                        error_type = "响应不完整"
+
                     # 检查响应过早结束
-                    elif "Response ended prematurely" in str(e):
+                    elif "Response ended prematurely" in error_str:
                         is_retriable = True
+                        error_type = "响应中断"
+
+                    # 检查连接错误
+                    elif isinstance(e, requests.exceptions.ConnectionError):
+                        if attempt_duration < fast_fail_threshold:
+                            is_retriable = True
+                            error_type = "连接错误"
+
                     # 检查是否是预定义的可重试异常
                     elif isinstance(e, retriable_exceptions):
-                        is_retriable = True
-                    
+                        if attempt_duration < fast_fail_threshold:
+                            is_retriable = True
+                            error_type = "网络异常"
+
                     # 最后一次尝试或不可重试的错误，直接抛出
                     if attempt == mtries - 1 or not is_retriable:
+                        if not is_retriable:
+                            logger.error(f"不可重试的错误: {error_str[:100]}")
                         raise
 
                     # 打印重试信息
-                    logger.warning(f"请求失败 (尝试 {attempt + 1}/{mtries}): {str(e)[:100]}")
+                    logger.warning(f"{error_type} (尝试 {attempt + 1}/{mtries}, 耗时 {attempt_duration:.1f}s): {error_str[:80]}")
                     logger.info(f"等待 {mdelay:.1f}s 后重试...")
 
                     # 等待后重试
                     time.sleep(mdelay)
                     mdelay *= backoff  # 指数退避
-            
+
         return wrapper
     return decorator
 
@@ -125,8 +171,14 @@ class BananaImageNode:
     _IMAGE_CACHE_LOCK = threading.Lock()
     _IMAGE_CACHE_SIZE = 16
     _ERROR_FONT_CACHE: Dict[int, ImageFont.ImageFont] = {}
-    _SESSION: Optional[requests.Session] = None
-    _SESSION_LOCK = threading.Lock()
+    _THREAD_LOCAL = threading.local()
+    _SESSION_INIT_LOCK = threading.Lock()
+    _SESSION_INITIALIZED = False
+    _PLACEHOLDER_KEYS = {
+        "your-api-key-here",
+        "your_api_key_here",
+        "yourapikeyhere"
+    }
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "text")
@@ -139,7 +191,12 @@ class BananaImageNode:
         if not api_key:
             return None
         cleaned = api_key.strip()
-        if not cleaned or cleaned == "your-api-key-here":
+        if not cleaned:
+            return None
+
+        normalized = cleaned.lower()
+        compact = re.sub(r"[\s_-]+", "", normalized)
+        if normalized in cls._PLACEHOLDER_KEYS or compact in cls._PLACEHOLDER_KEYS:
             return None
         return cleaned
 
@@ -160,15 +217,15 @@ class BananaImageNode:
         return f"{normalized_url}|{digest}"
 
     @classmethod
-    def _tensor_cache_key(cls, tensor: Optional[torch.Tensor]) -> Optional[str]:
-        if tensor is None:
+    def _tensor_cache_key(cls, tensor: Optional[torch.Tensor] = None,
+                          np_data: Optional[np.ndarray] = None) -> Optional[str]:
+        if tensor is None and np_data is None:
             return None
         try:
-            np_data = tensor.detach().cpu().numpy()
-        except Exception:
-            return None
-        try:
-            return hashlib.sha1(np_data.tobytes()).hexdigest()
+            target = np_data
+            if target is None:
+                target = tensor.detach().cpu().numpy()
+            return hashlib.sha1(target.tobytes()).hexdigest()
         except Exception:
             return None
 
@@ -388,20 +445,39 @@ class BananaImageNode:
             return None
 
     @classmethod
-    def _get_shared_session(cls) -> requests.Session:
+    def _get_thread_session(cls) -> requests.Session:
         """
-        获取共享的 HTTP Session（连接池复用）
-        简化为单次检查，避免双重检查锁定（DCL）的潜在竞态问题
+        获取线程专属的 HTTP Session，避免 requests.Session 在线程间复用导致的竞态
         """
-        with cls._SESSION_LOCK:
-            if cls._SESSION is None:
-                pool_size = max(4, cls.load_max_workers_from_config())
-                session = requests.Session()
-                adapter = HTTPAdapter(pool_connections=pool_size, pool_maxsize=pool_size)
-                session.mount("http://", adapter)
-                session.mount("https://", adapter)
-                cls._SESSION = session
-            return cls._SESSION
+        session = getattr(cls._THREAD_LOCAL, "session", None)
+        if session is not None:
+            return session
+
+        pool_size = max(4, cls.load_max_workers_from_config())
+        session = requests.Session()
+
+        adapter = HTTPAdapter(
+            pool_connections=pool_size,
+            pool_maxsize=pool_size,
+            pool_block=False
+        )
+        session.mount("http://", adapter)
+        session.mount("https://", adapter)
+
+        keepalive_timeout = cls._get_keepalive_timeout()
+        session.headers.update({
+            'Connection': 'keep-alive',
+            'Keep-Alive': f'timeout={keepalive_timeout}, max=100'
+        })
+
+        setattr(cls._THREAD_LOCAL, "session", session)
+
+        with cls._SESSION_INIT_LOCK:
+            if not cls._SESSION_INITIALIZED:
+                logger.info(f"HTTP 连接池已初始化: pool_size={pool_size}, keepalive_timeout={keepalive_timeout}s")
+                cls._SESSION_INITIALIZED = True
+
+        return session
 
     @classmethod
     def fetch_token_usage(cls, api_base_url: str, api_key: str, timeout: int = 15) -> Dict[str, Any]:
@@ -411,7 +487,7 @@ class BananaImageNode:
         base_url = (api_base_url or cls.DEFAULT_API_BASE_URL).rstrip("/")
         url = f"{base_url}/api/usage/token"
         headers = {"Authorization": f"Bearer {sanitized_key}"}
-        session = cls._get_shared_session()
+        session = cls._get_thread_session()
         # 直接发送请求,Session会自动管理连接池
         response = session.get(url, headers=headers, timeout=timeout)
         try:
@@ -459,7 +535,7 @@ class BananaImageNode:
                 default_workers = min(8, cpu_limit)
                 config['gemini'] = {
                     'api_key': 'your-api-key-here',
-                    'balance_cost_factor': '1.0',
+                    'balance_cost_factor': '0.6',
                     'max_workers': str(default_workers)
                 }
                 with open(config_path, 'w', encoding='utf-8') as f:
@@ -479,11 +555,11 @@ class BananaImageNode:
             try:
                 config.read(config_path, encoding="utf-8")
                 if config.has_section('gemini'):
-                    value = config.getfloat('gemini', 'balance_cost_factor', fallback=1.0)
+                    value = config.getfloat('gemini', 'balance_cost_factor', fallback=0.6)
                     return cls._clamp_cost_factor(value)
             except Exception as e:
                 logger.warning(f"读取 config 中的 balance_cost_factor 失败: {e}")
-        return 1.0
+        return 0.6
 
     @classmethod
     def load_max_workers_from_config(cls) -> int:
@@ -500,7 +576,28 @@ class BananaImageNode:
             except Exception as e:
                 logger.warning(f"读取 config 中的 max_workers 失败: {e}")
         return default_workers
-    
+
+    @classmethod
+    def _get_keepalive_timeout(cls) -> int:
+        """
+        从 config.ini 读取 Keep-Alive 超时时间
+        默认 30 秒，兼容大多数防火墙/NAT 环境
+        """
+        config_path = cls._get_config_path()
+        config = configparser.ConfigParser()
+
+        if os.path.exists(config_path):
+            try:
+                config.read(config_path, encoding="utf-8")
+                if config.has_section('gemini'):
+                    timeout = config.getint('gemini', 'keepalive_timeout', fallback=30)
+                    # 限制在合理范围：10-120 秒
+                    return max(10, min(timeout, 120))
+            except Exception as e:
+                logger.warning(f"读取 keepalive_timeout 失败: {e}")
+
+        return 30  # 默认 30 秒
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -544,30 +641,64 @@ class BananaImageNode:
             }
         }
     
-    def tensor_to_base64(self, tensor: torch.Tensor) -> str:
-        """将tensor转换为base64"""
-        img_array = (tensor[0].cpu().numpy() * 255).astype(np.uint8)
-        img = Image.fromarray(img_array)
+    def _extract_numpy_images(self, tensor: torch.Tensor) -> List[np.ndarray]:
+        """将 Comfy 图像张量转换为按批次展开的 numpy 图像列表"""
+        images: List[np.ndarray] = []
+        if tensor is None:
+            return images
+        try:
+            np_data = tensor.detach().cpu().numpy()
+        except Exception as exc:
+            logger.error(f"输入图像转换失败: {exc}")
+            return images
+
+        if np_data.ndim == 3:
+            np_data = np_data[np.newaxis, ...]
+        np_data = np.clip(np_data, 0.0, 1.0)
+
+        for sample in np_data:
+            if sample.ndim == 2:
+                sample = np.expand_dims(sample, axis=-1)
+            if sample.shape[-1] == 1:
+                sample = np.repeat(sample, 3, axis=-1)
+            images.append(np.ascontiguousarray(sample))
+        return images
+
+    def tensor_to_base64(self, tensor: Optional[torch.Tensor] = None,
+                         np_image: Optional[np.ndarray] = None) -> str:
+        """将 tensor 或 numpy 图像转换为 base64"""
+        if np_image is None:
+            if tensor is None:
+                raise ValueError("必须提供 tensor 或 numpy 图像数据用于编码")
+            samples = self._extract_numpy_images(tensor)
+            if not samples:
+                raise ValueError("无法从 tensor 中提取有效图像数据")
+            np_image = samples[0]
+
+        img_array = np.clip(np_image, 0.0, 1.0)
+        img_uint8 = (img_array * 255).astype(np.uint8)
+        img = Image.fromarray(img_uint8)
         buffered = BytesIO()
         img.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode()
 
     def prepare_input_images(self, tensors: List[torch.Tensor]) -> List[str]:
-        """将输入tensor预编码为Base64并复用缓存"""
+        """将输入tensor预编码为Base64并复用缓存（支持批量图片）"""
         if not tensors:
             return []
         encoded_images: List[str] = []
         for tensor in tensors:
             if tensor is None:
                 continue
-            cache_key = self._tensor_cache_key(tensor)
-            cached_value = self._get_cached_image_b64(cache_key)
-            if cached_value is None:
-                base64_value = self.tensor_to_base64(tensor)
-                self._set_cached_image_b64(cache_key, base64_value)
-            else:
-                base64_value = cached_value
-            encoded_images.append(base64_value)
+            for sample in self._extract_numpy_images(tensor):
+                cache_key = self._tensor_cache_key(np_data=sample)
+                cached_value = self._get_cached_image_b64(cache_key)
+                if cached_value is None:
+                    base64_value = self.tensor_to_base64(np_image=sample)
+                    self._set_cached_image_b64(cache_key, base64_value)
+                else:
+                    base64_value = cached_value
+                encoded_images.append(base64_value)
         return encoded_images
 
     def base64_to_tensor_single(self, b64_str: str) -> np.ndarray:
@@ -826,13 +957,13 @@ class BananaImageNode:
             "generationConfig": generation_config
         }
 
-    @retry_with_backoff(tries=3, delay=2, backoff=2)
+    @retry_with_backoff(tries=3, delay=2, backoff=1, fast_fail_threshold=15.0)
 
-    def send_request(self, api_key: str, request_data: Dict, model_type: str, 
+    def send_request(self, api_key: str, request_data: Dict, model_type: str,
                     api_base_url: str, timeout = 180) -> Dict:
         """发送API请求"""
         endpoint = "generateContent"
-        
+
         if "generativelanguage.googleapis.com" in api_base_url:
             url = f"{api_base_url.rstrip('/')}/v1beta/models/{model_type}:{endpoint}?key={api_key}"
             headers = {'Content-Type': 'application/json'}
@@ -842,23 +973,29 @@ class BananaImageNode:
                 'Content-Type': 'application/json',
                 'Authorization': f'Bearer {api_key}',
             }
-        
+
         headers['User-Agent'] = 'ComfyUI-Gemini-Node/2.1'
 
+        request_start = time.time()
         try:
-            session = self._get_shared_session()
+            session = self._get_thread_session()
             # 直接发送请求,Session会自动管理连接池
             response = session.post(url, json=request_data, headers=headers, timeout=timeout)
+            request_time = time.time() - request_start
             try:
                 if response.status_code != 200:
-                    # 读取少量文本用于诊断
-                    raise Exception(f"API返回 {response.status_code}: {response.text[:200]}")
+                    # 记录非200响应的耗时，帮助诊断
+                    error_msg = f"API返回 {response.status_code}: {response.text[:200]}"
+                    logger.warning(f"请求耗时 {request_time:.2f}s 后收到错误: {error_msg}")
+                    raise Exception(error_msg)
+                logger.info(f"API请求成功，耗时 {request_time:.2f}s")
                 return response.json()
             finally:
                 # 确保响应内容被完全读取,连接才能被复用
                 response.close()
         except requests.exceptions.Timeout:
-            raise Exception(f"请求超时（{timeout}秒）")
+            timeout_duration = time.time() - request_start
+            raise Exception(f"请求超时（设置{timeout}秒，实际等待{timeout_duration:.1f}秒）")
         except requests.exceptions.RequestException as e:
             raise Exception(f"网络错误: {str(e)}")
 
@@ -997,9 +1134,11 @@ class BananaImageNode:
         # 固定配置
         concurrent_mode = True  # 总是开启并发
         stagger_delay = 0.0     # 不使用交错延迟
-        # 拆分网络超时：连接(10s) + 读取(60s)
+        # 拆分网络超时：连接(10s) + 读取(90s)
+        # 连接超时缩短到10s，如果10s都连不上说明网络有问题
+        # 读取超时延长到90s，因为图像生成确实需要时间
         connect_timeout = 10
-        read_timeout = 60
+        read_timeout = 90
         request_timeout = (connect_timeout, read_timeout)
         continue_on_error = True  # 总是容错
         configured_workers = self.load_max_workers_from_config()
@@ -1048,23 +1187,39 @@ class BananaImageNode:
             try:
                 future_to_index = {executor.submit(self.generate_single_image, task): task[0]
                                    for task in tasks}
-                # 计算总体等待时间（连接+读取+余量），避免单次卡住拖累整体
-                overall_timeout = connect_timeout + read_timeout + 30
-                try:
-                    for future in as_completed(future_to_index, timeout=overall_timeout):
+                overall_timeout = connect_timeout + read_timeout + 20
+                deadline = time.time() + overall_timeout
+                pending_futures = set(future_to_index.keys())
+                timed_out = False
+
+                while pending_futures:
+                    remaining = deadline - time.time()
+                    if remaining <= 0:
+                        timed_out = True
+                        break
+
+                    done, pending_futures = wait(
+                        pending_futures,
+                        timeout=max(0.1, remaining),
+                        return_when=FIRST_COMPLETED
+                    )
+
+                    if not done:
+                        continue
+
+                    for future in done:
+                        index = future_to_index.pop(future, -1)
                         try:
                             self._ensure_not_interrupted()
-                            # as_completed 已保证完成，无需再加 result 超时
                             result = future.result()
                             results.append(result)
                             completed += 1
-                            # 显示批次完成进度
+
                             if result['success']:
                                 logger.success(f"[{completed}/{batch_size}] 批次 {result['index']+1} 完成")
                             else:
                                 logger.error(f"[{completed}/{batch_size}] 批次 {result['index']+1} 失败")
 
-                            # 更新 ComfyUI 进度条（实时预览）
                             preview_tensor = result.get('tensor')
                             if result.get('success') and preview_tensor is not None:
                                 preview_tuple = self._build_preview_tuple(preview_tensor, result['index'])
@@ -1075,13 +1230,13 @@ class BananaImageNode:
                             else:
                                 pbar.update(1)
                         except comfy.model_management.InterruptProcessingException:
-                            # 检测到中断，取消所有未完成的任务
-                            logger.warning(f"检测到中断信号，正在取消剩余任务...")
-                            for pending in future_to_index:
+                            logger.warning("检测到中断信号，正在取消剩余任务...")
+                            for pending in pending_futures:
                                 pending.cancel()
+                            for future_ref in future_to_index.keys():
+                                future_ref.cancel()
                             raise
                         except Exception as e:
-                            index = future_to_index.get(future, -1)
                             logger.error(f"批次 {index+1 if index>=0 else '?'} 异常: {str(e)}")
                             results.append({
                                 'index': index,
@@ -1090,17 +1245,16 @@ class BananaImageNode:
                                 'tensor': None,
                                 'image_count': 0
                             })
-                except TimeoutError:
+
+                if timed_out and pending_futures:
                     logger.warning(f"整体超时！已完成 {completed}/{batch_size} 个任务")
-                    # 尝试取消未开始的任务；已在运行的请求无法立即取消
-                    for future in future_to_index:
+                    for future in pending_futures:
                         future.cancel()
-                finally:
-                    # 关键：不等待线程结束以免卡住主线程；运行中的请求会在后台自行结束
-                    executor.shutdown(wait=False, cancel_futures=True)
             except Exception:
-                executor.shutdown(wait=False, cancel_futures=True)
                 raise
+            finally:
+                # 关键：不等待线程结束以免卡住主线程；运行中的请求会在后台自行结束
+                executor.shutdown(wait=False, cancel_futures=True)
         else:
             for task in tasks:
                 self._ensure_not_interrupted()

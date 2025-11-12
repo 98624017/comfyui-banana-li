@@ -7,3 +7,9 @@ balance_cost_factor = 0.6
 
 # 最大并发工作线程数（建议 4-8，根据你的机器性能调整）
 max_workers = 8
+
+# Keep-Alive 超时时间（秒，默认 30）
+# 企业网络/严格防火墙：建议设置为 15-20
+# 家庭网络/VPN：可设置为 60
+# 移动热点：建议设置为 10-15
+keepalive_timeout = 30
