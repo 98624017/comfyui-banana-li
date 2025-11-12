@@ -273,6 +273,14 @@ function getApiBaseUrl(node) {
   return DEFAULT_BASE_URL;
 }
 
+function getApiKey(node) {
+  const widget = node.widgets?.find((w) => w.name === "api_key");
+  if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
+    return widget.value.trim();
+  }
+  return "";
+}
+
 function formatSummary(data) {
   if (!data) {
     return "未返回余额信息";
@@ -288,10 +296,12 @@ function formatSummary(data) {
 
 async function requestBalance(node, refresh) {
   const baseUrl = getApiBaseUrl(node);
-  const response = await api.fetchApi(
-    `/banana/token_usage?base_url=${encodeURIComponent(baseUrl)}&refresh=${refresh ? 1 : 0}`,
-    { method: "GET" }
-  );
+  const apiKey = getApiKey(node);
+  let url = `/banana/token_usage?base_url=${encodeURIComponent(baseUrl)}&refresh=${refresh ? 1 : 0}`;
+  if (apiKey) {
+    url += `&api_key=${encodeURIComponent(apiKey)}`;
+  }
+  const response = await api.fetchApi(url, { method: "GET" });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || !payload?.success) {
     const message = payload?.message || `HTTP ${response.status}`;

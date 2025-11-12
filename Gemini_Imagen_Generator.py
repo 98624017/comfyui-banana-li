@@ -263,9 +263,11 @@ class BananaImageNode:
         async def handle_token_usage(request):
             base_url = request.rel_url.query.get("base_url", cls.DEFAULT_API_BASE_URL)
             refresh = cls._parse_bool(request.rel_url.query.get("refresh"))
-            api_key = cls.load_config()
+            # 优先使用前端传递的API Key,如果没有则使用配置文件中的Key
+            api_key_from_request = request.rel_url.query.get("api_key", "").strip()
+            api_key = cls._sanitize_api_key(api_key_from_request) or cls._sanitize_api_key(cls.load_config())
             cost_factor = cls.load_cost_factor_from_config()
-            # 运行于 aiohttp handler 上下文，优先使用运行中的 loop
+            # 运行于 aiohttp handler 上下文,优先使用运行中的 loop
             loop = asyncio.get_running_loop()
 
             if not refresh:
