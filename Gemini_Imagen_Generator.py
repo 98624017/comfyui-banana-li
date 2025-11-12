@@ -333,7 +333,8 @@ class BananaImageNode:
             tokens_value = float(tokens)
         except (TypeError, ValueError):
             return "-"
-        yuan = tokens_value * cls.BASE_COST_PER_TOKEN * cost_factor
+        # 使用 cost_factor 的倒数: 当配置为 1.67 时,实际除以 1.67
+        yuan = tokens_value * cls.BASE_COST_PER_TOKEN / cost_factor
         return f"¥{yuan:.4f}"
 
     @classmethod
