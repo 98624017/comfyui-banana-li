@@ -43,7 +43,7 @@ openspec/
 AGENTS.md
 token-usage.md
 test_checklist.md
-
+CLAUDE.md
 # 日志文件
 *.log
 

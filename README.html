@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心宝❤Banana - ComfyUI Gemini Image Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            line-height: 1.6;
+            color: #24292f;
+            background-color: #ffffff;
+            padding: 20px;
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            body {
+                color: #c9d1d9;
+                background-color: #0d1117;
+            }
+            a { color: #58a6ff; }
+            code {
+                background-color: rgba(110, 118, 129, 0.4);
+                color: #e6edf3;
+            }
+            pre {
+                background-color: #161b22;
+                border-color: #30363d;
+            }
+            table tr {
+                background-color: #0d1117;
+                border-color: #30363d;
+            }
+            table tr:nth-child(2n) {
+                background-color: #161b22;
+            }
+            blockquote {
+                color: #8b949e;
+                border-left-color: #3b434b;
+            }
+            h1, h2 {
+                border-bottom-color: #21262d;
+            }
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #d0d7de;
+            padding-bottom: 0.3em;
+        }
+
+        h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #d0d7de;
+            padding-bottom: 0.3em;
+        }
+
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1em; }
+
+        a {
+            color: #0969da;
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(175, 184, 193, 0.2);
+            border-radius: 6px;
+            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+        }
+
+        pre {
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            border: 0;
+            font-size: 100%;
+        }
+
+        ul, ol {
+            padding-left: 2em;
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-top: 0.25em;
+        }
+
+        table {
+            border-spacing: 0;
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 0;
+            margin-bottom: 16px;
+            overflow-x: auto;
+            display: block;
+        }
+
+        table tr {
+            background-color: #ffffff;
+            border-top: 1px solid #d0d7de;
+        }
+
+        table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+        }
+
+        table th,
+        table td {
+            padding: 6px 13px;
+            border: 1px solid #d0d7de;
+        }
+
+        table th {
+            font-weight: 600;
+        }
+
+        blockquote {
+            padding: 0 1em;
+            color: #656d76;
+            border-left: 0.25em solid #d0d7de;
+            margin-top: 0;
+            margin-bottom: 16px;
+        }
+
+        hr {
+            height: 0.25em;
+            padding: 0;
+            margin: 24px 0;
+            background-color: #d0d7de;
+            border: 0;
+        }
+
+        p {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+
+        [align="center"] {
+            text-align: center;
+        }
+
+        strong {
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div align="center">
+        <h1>心宝❤Banana - ComfyUI Gemini Image Generator</h1>
+        <img src="https://youke1.picui.cn/s1/2025/11/12/69140968ed33b.jpg" width="200" alt="Banana Logo"/>
+        <blockquote>
+            <p>为 ComfyUI 提供 Nano Banana 图像生成能力的自定义节点</p>
+        </blockquote>
+        <p>
+            <a href="https://github.com/yourusername/comfyui-banana-gemini"><img src="https://img.shields.io/badge/GitHub-comfyui--banana--gemini-blue" alt="GitHub"></a>
+            <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10+-blue" alt="Python"></a>
+            <a href="https://github.com/comfyanonymous/ComfyUI"><img src="https://img.shields.io/badge/ComfyUI-Custom_Node-orange" alt="ComfyUI"></a>
+            <a href="https://space.bilibili.com/470042957"><img src="https://img.shields.io/badge/Bilibili-@李心宝爱玩Ai-ff69b4" alt="Bilibili"></a>
+        </p>
+    </div>
+
+    <h2>📖 简介</h2>
+    <p>Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana 的图像生成 API。支持文本到图像、图像到图像等多种生成模式,让你在 ComfyUI 工作流中轻松使用最新的 AI 图像生成技术。</p>
+
+    <p>大家好,我是李心宝,一个在电商设计领域摸爬滚打了多年的老设计。我专注在如何让 AI 技术真正在咱们的日常工作中落地,提升效率。我乐于分享自己深度评测、实践过、确实好用的 AI 工作流和设计技巧,希望能和大家一起探索、共同进步。我整理、制作了不少免费的工作流和资料,希望能帮你少走弯路。</p>
+
+    <p>当然,如果你需要更精细化、针对性更强的解决方案,我也提供付费的专属工作流。期待能和更多志同道合的设计人、电商人、AI实践者们交个朋友,一起把 AI 设计玩明白!</p>
+
+    <h3><img src="https://img.shields.io/badge/飞书-00D6B9?logo=lark&logoColor=white" align="center" style="vertical-align: middle;"> 免费资料与专属工作流介绍</h3>
+    <p>📂 <a href="https://lcni4wauvbvx.feishu.cn/docx/BODPdxQ51ontbzxbq7tcUvlsnMd">点击访问飞书文档</a> - 获取免费资料及专属工作流详情</p>
+
+    <h2>📺 视频教程</h2>
+    <p>访问我的 <a href="https://space.bilibili.com/470042957">B站主页</a> 观看详细的使用教程和案例演示!</p>
+
+    <h3>部分视频</h3>
+    <ul>
+        <li><img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> <a href="https://www.bilibili.com/video/BV1ir1cBVEeA">香蕉100%不偏移技巧,效率提升N倍</a></li>
+        <li><img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> <a href="https://www.bilibili.com/video/BV1J7yXBoEq6">心宝顶级放大系列-03人像类放大</a></li>
+        <li><img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> <a href="https://www.bilibili.com/video/BV1LSnZzoERc">心宝顶级放大05-100%修手修脚</a></li>
+        <li><img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> <a href="https://www.bilibili.com/video/BV1mhaazPE13">4K透溶V2——纠正背景透视,一键换背景、融合、打光</a></li>
+    </ul>
+
+    <h2>📮 联系方式</h2>
+    <ul>
+        <li><strong>GitHub Issues</strong>: <a href="https://github.com/yourusername/comfyui-banana-gemini/issues">提交问题和建议</a></li>
+        <li><strong>Bilibili</strong>: <a href="https://space.bilibili.com/470042957">@心宝</a> - 视频教程和更新动态</li>
+        <li><strong>获取公开资料及API 购买</strong>: <img src="https://img.shields.io/badge/WeChat-07C160?logo=wechat&logoColor=white" align="center" style="vertical-align: middle;"> Li_18727107073</li>
+    </ul>
+
+    <h2>✨ 功能特性</h2>
+    <ul>
+        <li>🎨 <strong>多模态输入</strong> - 支持纯文本、文本+图像混合提示词</li>
+        <li>🔢 <strong>批量生成</strong> - 一次生成最多 8 张图像</li>
+        <li>📐 <strong>多种比例</strong> - 支持 1:1、16:9、9:16、21:9 等多种宽高比</li>
+        <li>🎲 <strong>种子控制</strong> - 精确控制生成结果的随机性</li>
+        <li>🔄 <strong>智能重试</strong> - 内置指数退避重试机制,提高成功率</li>
+        <li>💰 <strong>余额显示</strong> - 可便捷查询账户余额和费用预估</li>
+        <li>⚡ <strong>并发处理</strong> - 多线程并发生成,提升效率</li>
+        <li>🎯 <strong>错误提示</strong> - 失败时生成可视化错误提示图像</li>
+        <li>🌈 <strong>彩色日志</strong> - 线程安全的彩色日志系统,支持进度条</li>
+    </ul>
+
+    <h2>🚀 安装</h2>
+    <h3>方法 1: 通过 手动安装</h3>
+    <pre><code>cd ComfyUI/custom_nodes
+git clone https://github.com/yourusername/comfyui-banana-gemini.git comfyui-banana-gemini
+cd comfyui-banana-gemini</code></pre>
+
+    <h2>⚙️ 配置</h2>
+    <h3>1. 创建配置文件</h3>
+    <p>复制或重命名示例配置文件并编辑:</p>
+    <pre><code>cp config.ini.example config.ini</code></pre>
+
+    <h3>2. 填写 API Key</h3>
+    <p>编辑 <code>config.ini</code> 文件:</p>
+    <pre><code>[gemini]
+# 你的 API Key
+api_key = YOUR_API_KEY_HERE
+
+# Token 方便用户查询剩余额度token转换系数(用户请勿调整)
+balance_cost_factor = 0.5
+
+# 最大并发工作线程数(建议 4-8)
+max_workers = 8</code></pre>
+
+    <h3>3. 获取 API Key</h3>
+    <p>你可以通过以下方式获取 NanoBanana API Key:</p>
+    <ul>
+        <li><strong>API 购买</strong>: 联系 Li_18727107073 购买 API Key</li>
+    </ul>
+
+    <h2>📝 使用方法</h2>
+    <ol>
+        <li>在 ComfyUI 中添加 "心宝❤Banana" 节点</li>
+        <li>配置节点参数(见下方参数说明)</li>
+        <li>连接其他节点并运行工作流</li>
+    </ol>
+
+    <h3>基础示例</h3>
+    <pre><code>文本提示词 → 心宝❤Banana → 预览图像 → 保存图像</code></pre>
+
+    <h3>图生图示例</h3>
+    <pre><code>加载图像 → 心宝❤Banana → 预览图像
+         ↗  (image_1 输入)
+文本提示词</code></pre>
+
+    <h2>🎛️ 参数说明</h2>
+    <h3>必需参数</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>参数</th>
+                <th>类型</th>
+                <th>默认值</th>
+                <th>说明</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>prompt</strong></td>
+                <td>STRING</td>
+                <td>"Peace and love"</td>
+                <td>文本提示词,支持多行输入</td>
+            </tr>
+            <tr>
+                <td><strong>api_base_url</strong></td>
+                <td>STRING</td>
+                <td>https://xinbaoapi.feng1994.xin</td>
+                <td>API 基础 URL</td>
+            </tr>
+            <tr>
+                <td><strong>api_key</strong></td>
+                <td>STRING</td>
+                <td>""</td>
+                <td>Gemini API Key(留空则从配置文件读取)</td>
+            </tr>
+            <tr>
+                <td><strong>model_type</strong></td>
+                <td>STRING</td>
+                <td>gemini-2.5-flash-image</td>
+                <td>使用的模型类型</td>
+            </tr>
+            <tr>
+                <td><strong>batch_size</strong></td>
+                <td>INT</td>
+                <td>1</td>
+                <td>批量生成数量(1-8)</td>
+            </tr>
+            <tr>
+                <td><strong>aspect_ratio</strong></td>
+                <td>STRING</td>
+                <td>Auto</td>
+                <td>宽高比(Auto/1:1/9:16/16:9/21:9/2:3/3:2/3:4/4:3/4:5/5:4)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>可选参数</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>参数</th>
+                <th>类型</th>
+                <th>默认值</th>
+                <th>说明</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>seed</strong></td>
+                <td>INT</td>
+                <td>-1</td>
+                <td>随机种子(-1 为随机,0-102400 为固定)</td>
+            </tr>
+            <tr>
+                <td><strong>top_p</strong></td>
+                <td>FLOAT</td>
+                <td>0.95</td>
+                <td>采样参数,控制生成多样性(0.0-1.0)</td>
+            </tr>
+            <tr>
+                <td><strong>image_1~5</strong></td>
+                <td>IMAGE</td>
+                <td>-</td>
+                <td>可选的参考图像输入(最多 5 张)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h2>📋 输出</h2>
+    <p>节点返回一个包含生成图像的张量(TENSOR),可以连接到:</p>
+    <ul>
+        <li>图像预览节点</li>
+        <li>图像保存节点</li>
+        <li>其他图像处理节点</li>
+    </ul>
+
+    <h2>🔧 高级功能</h2>
+    <h3>并发控制</h3>
+    <p>在 <code>config.ini</code> 中调整 <code>max_workers</code> 参数来控制并发线程数:</p>
+    <ul>
+        <li><strong>低端设备</strong>: 2-4</li>
+        <li><strong>中端设备</strong>: 4-8</li>
+        <li><strong>高端设备</strong>: 8+</li>
+    </ul>
+
+    <h3>错误处理</h3>
+    <p>当生成失败时,节点会:</p>
+    <ol>
+        <li>自动重试(最多 3 次,指数退避)</li>
+        <li>如果所有重试都失败,返回包含错误信息的可视化图像</li>
+        <li>在控制台输出详细的错误日志</li>
+    </ol>
+
+    <h3>余额监控</h3>
+    <p>节点内置 Web UI 扩展,可以在 ComfyUI 界面中实时查看:</p>
+    <ul>
+        <li>💰 账户余额</li>
+        <li>📊 Token 使用量</li>
+        <li>💸 预估费用</li>
+    </ul>
+
+    <h2>🛠️ 开发</h2>
+    <h3>项目结构</h3>
+    <pre><code>banana/
+├── __init__.py                    # 节点注册入口
+├── Gemini_Imagen_Generator.py    # 主节点实现
+├── logger.py                      # 日志系统
+├── config.ini                     # 配置文件(需自行创建)
+├── config.ini.example             # 配置模板
+├── web/
+│   └── extensions/
+│       ├── token-balance.js       # 余额显示扩展
+│       └── xinbao.png            # 图标
+├── .gitignore
+├── README.md
+└── LICENSE</code></pre>
+
+    <h3>依赖库</h3>
+    <ul>
+        <li>PyTorch</li>
+        <li>NumPy</li>
+        <li>Pillow</li>
+        <li>requests</li>
+        <li>configparser</li>
+    </ul>
+
+    <h2>❗ 注意事项</h2>
+    <ol>
+        <li><strong>API Key 安全</strong>:
+            <ul>
+                <li>⚠️ <strong>绝不要</strong>将包含真实 API Key 的 <code>config.ini</code> 或含有apikey的工作流公开泄露</li>
+            </ul>
+        </li>
+        <li><strong>费用控制</strong>:
+            <ul>
+                <li>每次生成都会消耗 API 额度</li>
+                <li>建议设置合理的 <code>batch_size</code> 避免过度消耗</li>
+            </ul>
+        </li>
+        <li><strong>性能优化</strong>:
+            <ul>
+                <li>批量生成时会使用多线程并发</li>
+                <li>根据机器性能调整 <code>max_workers</code></li>
+            </ul>
+        </li>
+    </ol>
+
+    <h2>🐛 故障排除</h2>
+    <h3>问题:无法加载节点</h3>
+    <p><strong>解决方案</strong>:</p>
+    <ul>
+        <li>检查 ComfyUI 日志输出</li>
+        <li>确认所有依赖库已正确安装</li>
+        <li>重启 ComfyUI</li>
+    </ul>
+
+    <h3>问题:API 请求失败</h3>
+    <p><strong>解决方案</strong>:</p>
+    <ul>
+        <li>检查 API Key 是否正确</li>
+        <li>验证网络连接</li>
+        <li>查看 <code>api_base_url</code> 是否可访问</li>
+        <li>检查账户余额是否充足</li>
+    </ul>
+
+    <h3>问题:生成速度慢</h3>
+    <p><strong>解决方案</strong>:</p>
+    <ul>
+        <li>降低 <code>batch_size</code></li>
+        <li>调整 <code>max_workers</code> 参数</li>
+        <li>检查网络延迟</li>
+    </ul>
+
+    <h2>🤝 贡献</h2>
+    <p>欢迎提交 Issue 和 Pull Request!</p>
+
+    <h2>📄 许可证</h2>
+    <p>本项目采用 <a href="LICENSE">MIT License</a> 开源协议。</p>
+
+    <h2>🙏 致谢</h2>
+    <ul>
+        <li><a href="https://github.com/comfyanonymous/ComfyUI">ComfyUI</a> - 强大的 Stable Diffusion GUI</li>
+        <li><a href="https://github.com/">Github</a> - 广大公开代码借鉴项目</li>
+        <li>所有贡献者和使用者</li>
+    </ul>
+
+    <hr>
+
+    <div align="center">
+        <p><strong>⭐ 如果这个项目对你有帮助,请给个 Star!</strong></p>
+        <p>Made with ❤️ by <a href="https://space.bilibili.com/470042957">心宝</a></p>
+    </div>
+</body>
+</html>

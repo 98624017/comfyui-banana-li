@@ -504,7 +504,7 @@ class BananaImageNode:
             "required": {
                 "prompt": ("STRING", {
                     "multiline": True,
-                    "default": "Hello nano banana!"
+                    "default": "Peace and love"
                 }),
                 "api_base_url": ("STRING", {
                     "default": "https://xinbaoapi.feng1994.xin"

@@ -3,7 +3,7 @@ import { api } from "/scripts/api.js";
 
 const EXTENSION = "banana.tokenBalance";
 const TARGET_NODES = new Set(["BananaImageNode"]);
-const DEFAULT_BASE_URL = "https://api.aabao.top";
+const DEFAULT_BASE_URL = "https://xinbaoapi.feng1994.xin";
 const WECHAT_ID = "Li_18727107073";
 const QR_IMAGE_URL = new URL("./xinbao.png", import.meta.url).toString();
 const ACTION_BUTTON_DEFS = [

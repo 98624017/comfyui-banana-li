@@ -1,7 +1,5 @@
 [gemini]
-# 你的 Gemini API Key（必填）
-# 获取方式：https://aistudio.google.com/app/apikey
-# 或使用 OpenAI 代理服务
+# 联系Li_18727107073购买
 api_key = YOUR_API_KEY_HERE
 
 # Token 换算人民币调节系数（请勿调整，影响准确性）
