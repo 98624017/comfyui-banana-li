@@ -179,7 +179,6 @@ class BananaImageNode:
     支持从config.ini读取API Key
     """
 
-    # API Base URL 编码相关常量（默认绑定到 https://api.aabao.top）
     # 为避免在代码中出现明文 URL，仅保存字符编码列表
     _ENC_KEY_PARTS = (3, 4)
     _DEFAULT_API_BASE_URL_CODEPOINTS = [104, 116, 116, 112, 115, 58, 47, 47, 97, 112, 105, 46, 97, 97, 98, 97, 111, 46, 116, 111, 112]
