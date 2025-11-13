@@ -22,7 +22,16 @@ from collections import OrderedDict
 from requests.adapters import HTTPAdapter
 from aiohttp import web
 
-from server import PromptServer
+# 在非 ComfyUI 运行环境中,server 可能无法正常导入
+# 这里做一个兼容处理:导入失败时提供一个占位 PromptServer,
+# 仅用于避免测试脚本导入本模块时报错
+try:
+    from server import PromptServer
+except ImportError:
+    class _DummyPromptServer:
+        instance = None
+    PromptServer = _DummyPromptServer()
+
 import comfy.utils
 import comfy.model_management
 
@@ -42,7 +51,7 @@ except ImportError:
 
 
 def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None,
-                       fast_fail_threshold=15.0):
+                       fast_fail_threshold=20.0):
     """
     智能重试装饰器，区分快速失败和慢速失败
 
@@ -54,15 +63,17 @@ def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None,
         fast_fail_threshold: 快速失败阈值（秒），超过此时间的失败不重试
     """
     if retriable_exceptions is None:
-        # 默认重试可恢复的错误（5xx、网络超时、连接中断）
+        # 默认重试可恢复的错误（5xx、网络超时、连接中断、常见IO错误）
         retriable_exceptions = (
             requests.exceptions.Timeout,
             requests.exceptions.ConnectionError,
             requests.exceptions.HTTPError,
             requests.exceptions.ChunkedEncodingError,  # 响应分块传输中断
-            requests.exceptions.RequestException,  # 兜底的网络异常
-            ConnectionResetError,  # 连接被重置
-            BrokenPipeError,  # 管道破裂
+            requests.exceptions.RequestException,       # 兜底的网络异常
+            ConnectionResetError,                       # 连接被重置
+            BrokenPipeError,                            # 管道破裂
+            TimeoutError,                               # Python 内置超时错误（例如写操作超时）
+            OSError,                                    # 其他底层网络/IO错误
         )
 
     def decorator(func):
@@ -79,6 +90,13 @@ def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None,
                 except Exception as e:
                     attempt_duration = time.time() - attempt_start
                     error_str = str(e)
+                    # 为日志输出构建一个脱敏后的错误信息,避免泄露源站/密钥等敏感URL
+                    # 仅用于日志展示,不影响后续基于原始 error_str 的判定逻辑
+                    sanitized_error_str = re.sub(
+                        r"https?://[^\s'\"）)]+",
+                        "[URL]",
+                        error_str
+                    )
 
                     # 检查是否是可重试的异常
                     is_retriable = False
@@ -137,11 +155,14 @@ def retry_with_backoff(tries=3, delay=2, backoff=2, retriable_exceptions=None,
                     # 最后一次尝试或不可重试的错误，直接抛出
                     if attempt == mtries - 1 or not is_retriable:
                         if not is_retriable:
-                            logger.error(f"不可重试的错误: {error_str[:100]}")
+                            logger.error(f"不可重试的错误: {sanitized_error_str[:200]}")
                         raise
 
                     # 打印重试信息
-                    logger.warning(f"{error_type} (尝试 {attempt + 1}/{mtries}, 耗时 {attempt_duration:.1f}s): {error_str[:80]}")
+                    logger.warning(
+                        f"{error_type} (尝试 {attempt + 1}/{mtries}, 耗时 {attempt_duration:.1f}s): "
+                        f"{sanitized_error_str[:200]}"
+                    )
                     logger.info(f"等待 {mdelay:.1f}s 后重试...")
 
                     # 等待后重试
@@ -158,7 +179,13 @@ class BananaImageNode:
     支持从config.ini读取API Key
     """
 
-    DEFAULT_API_BASE_URL = "https://xinbaoapi.feng1994.xin"
+    # API Base URL 编码相关常量（默认绑定到 https://api.aabao.top）
+    # 为避免在代码中出现明文 URL，仅保存字符编码列表
+    _ENC_KEY_PARTS = (3, 4)
+    _DEFAULT_API_BASE_URL_CODEPOINTS = [104, 116, 116, 112, 115, 58, 47, 47, 97, 112, 105, 46, 97, 97, 98, 97, 111, 46, 116, 111, 112]
+    _CONFIG_SECTION = "gemini"
+    _CONFIG_KEY_API_BASE_URL_ENC = "api_base_url_enc"
+
     TOKENS_PER_RATE = 100000
     CURRENCY_PER_RATE = 0.20
     BASE_COST_PER_TOKEN = CURRENCY_PER_RATE / TOKENS_PER_RATE
@@ -179,12 +206,70 @@ class BananaImageNode:
         "your_api_key_here",
         "yourapikeyhere"
     }
+    # 本地测试配置相关常量
+    _TEST_CONFIG_FILE_NAME = "banana_gemini_test.local.ini"
+    _TEST_CONFIG_SECTION = "gemini_test"
+    _TEST_MODE_ENV_VAR = "BANANA_GEMINI_USE_LOCAL_TEST"
 
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("images", "text")
     FUNCTION = "generate_images"
     OUTPUT_NODE = True
     CATEGORY = "image/ai_generation"
+
+    @classmethod
+    def _decode_api_base_url(cls, enc: str) -> str:
+        """将编码后的 Base URL 还原为明文，仅在运行时使用"""
+        raw = base64.b64decode(enc.encode("utf-8"))
+        key = 0
+        for part in cls._ENC_KEY_PARTS:
+            key ^= part
+        data = bytes((b ^ key) for b in raw)
+        return data.decode("utf-8")
+
+    @classmethod
+    def _get_default_base_url(cls) -> str:
+        """
+        通过字符编码列表构造默认 Base URL，避免在代码中出现明文 URL
+        """
+        return "".join(chr(c) for c in cls._DEFAULT_API_BASE_URL_CODEPOINTS)
+
+    @classmethod
+    def _get_effective_api_base_url(cls) -> str:
+        """
+        统一计算当前生效的 API Base URL。
+
+        优先级：
+        1. 若开启测试模式且本地测试配置中存在 api_base_url_enc，则使用该值
+        2. 若 config.ini 的 [gemini] 段中配置了 api_base_url_enc，则使用该值
+        3. 否则回退到类内置的默认值
+        """
+        # 1. 测试模式优先（用于临时开发/调试）
+        test_base_url = cls._load_test_base_url()
+        if test_base_url:
+            return test_base_url
+
+        # 2. 正常配置文件中的永久 Base URL（编码形式）
+        config_path = cls._get_config_path()
+        parser = configparser.ConfigParser()
+        if os.path.exists(config_path):
+            try:
+                parser.read(config_path, encoding="utf-8")
+                if parser.has_section(cls._CONFIG_SECTION):
+                    enc = parser.get(
+                        cls._CONFIG_SECTION,
+                        cls._CONFIG_KEY_API_BASE_URL_ENC,
+                        fallback=""
+                    ).strip()
+                    if enc:
+                        return cls._decode_api_base_url(enc)
+            except Exception as e:
+                logger.warning(
+                    f"读取 config 中的 {cls._CONFIG_KEY_API_BASE_URL_ENC} 失败: {e}"
+                )
+
+        # 3. 默认值
+        return cls._get_default_base_url()
 
     @classmethod
     def _sanitize_api_key(cls, api_key: Optional[str]) -> Optional[str]:
@@ -212,7 +297,8 @@ class BananaImageNode:
 
     @classmethod
     def _balance_cache_key(cls, api_base_url: str, api_key: str) -> str:
-        normalized_url = (api_base_url or cls.DEFAULT_API_BASE_URL).rstrip("/").lower()
+        base_url = api_base_url or cls._get_effective_api_base_url()
+        normalized_url = base_url.rstrip("/").lower()
         digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()
         return f"{normalized_url}|{digest}"
 
@@ -318,7 +404,8 @@ class BananaImageNode:
 
         @prompt_server.routes.get("/banana/token_usage")
         async def handle_token_usage(request):
-            base_url = request.rel_url.query.get("base_url", cls.DEFAULT_API_BASE_URL)
+            # 前端不再控制 Base URL，统一由后端隐藏管理
+            base_url = cls._get_effective_api_base_url()
             refresh = cls._parse_bool(request.rel_url.query.get("refresh"))
             # 优先使用前端传递的API Key,如果没有则使用配置文件中的Key
             api_key_from_request = request.rel_url.query.get("api_key", "").strip()
@@ -464,17 +551,17 @@ class BananaImageNode:
         session.mount("http://", adapter)
         session.mount("https://", adapter)
 
-        keepalive_timeout = cls._get_keepalive_timeout()
+        # 使用短连接策略: 每个请求结束后主动关闭连接,避免在代理/不稳定网络下长连接悬挂
+        # 注意: requests 仍会管理底层连接池,但通过 Connection: close 提示中间节点不要长期保持连接
         session.headers.update({
-            'Connection': 'keep-alive',
-            'Keep-Alive': f'timeout={keepalive_timeout}, max=100'
+            'Connection': 'close',
         })
 
         setattr(cls._THREAD_LOCAL, "session", session)
 
         with cls._SESSION_INIT_LOCK:
             if not cls._SESSION_INITIALIZED:
-                logger.info(f"HTTP 连接池已初始化: pool_size={pool_size}, keepalive_timeout={keepalive_timeout}s")
+                logger.info(f"HTTP 连接池已初始化: pool_size={pool_size}, connection=close")
                 cls._SESSION_INITIALIZED = True
 
         return session
@@ -484,7 +571,7 @@ class BananaImageNode:
         sanitized_key = cls._sanitize_api_key(api_key)
         if not sanitized_key:
             raise ValueError("未配置有效的 API Key")
-        base_url = (api_base_url or cls.DEFAULT_API_BASE_URL).rstrip("/")
+        base_url = (api_base_url or cls._get_effective_api_base_url()).rstrip("/")
         url = f"{base_url}/api/usage/token"
         headers = {"Authorization": f"Bearer {sanitized_key}"}
         session = cls._get_thread_session()
@@ -502,7 +589,7 @@ class BananaImageNode:
         finally:
             # 确保响应内容被完全读取,连接才能被复用
             response.close()
-        cls._store_balance_snapshot(api_base_url, sanitized_key, payload)
+        cls._store_balance_snapshot(base_url, sanitized_key, payload)
         return payload
 
     @staticmethod
@@ -511,15 +598,127 @@ class BananaImageNode:
         return os.path.join(current_dir, "config.ini")
 
     @classmethod
+    def _get_test_config_path(cls) -> str:
+        """获取本地测试配置文件路径（banana_gemini_test.local.ini）"""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(current_dir, cls._TEST_CONFIG_FILE_NAME)
+
+    @classmethod
+    def _is_test_mode_enabled(cls) -> bool:
+        """
+        判断是否开启本地测试模式
+
+        通过环境变量 BANANA_GEMINI_USE_LOCAL_TEST 控制：
+        - 1/true/yes/on（大小写不敏感）视为开启
+        """
+        value = os.environ.get(cls._TEST_MODE_ENV_VAR, "").strip().lower()
+        return value in {"1", "true", "yes", "on"}
+
+    @classmethod
+    def _load_test_section(cls) -> Optional[Dict[str, str]]:
+        """
+        从本地测试配置文件中读取 [gemini_test] 段
+
+        仅在测试模式开启时尝试读取；读取失败会记录日志但不中断正常流程。
+        """
+        if not cls._is_test_mode_enabled():
+            return None
+
+        test_config_path = cls._get_test_config_path()
+        if not os.path.exists(test_config_path):
+            return None
+
+        parser = configparser.ConfigParser()
+        try:
+            parser.read(test_config_path, encoding="utf-8")
+            if parser.has_section(cls._TEST_CONFIG_SECTION):
+                section = parser[cls._TEST_CONFIG_SECTION]
+                # 转成普通字典，避免把 ConfigParser 的细节泄露到外层
+                return {k: v for k, v in section.items()}
+        except Exception as e:
+            logger.warning(f"读取本地测试配置失败: {e}")
+        return None
+
+    @classmethod
+    def _load_test_api_key(cls) -> Optional[str]:
+        """从本地测试配置中读取并清洗 API Key"""
+        section = cls._load_test_section()
+        if not section:
+            return None
+        api_key = section.get("api_key", "").strip()
+        return cls._sanitize_api_key(api_key)
+
+    @classmethod
+    def _load_test_base_url(cls) -> Optional[str]:
+        """从本地测试配置中读取并解码 Base URL（编码字段 api_base_url_enc）"""
+        section = cls._load_test_section()
+        if not section:
+            return None
+        enc = section.get("api_base_url_enc", "").strip()
+        if not enc:
+            return None
+        try:
+            return cls._decode_api_base_url(enc)
+        except Exception as e:
+            logger.warning(f"解码测试配置中的 api_base_url_enc 失败: {e}")
+            return None
+
+    @classmethod
+    def _load_test_python_env(cls) -> Optional[str]:
+        """
+        从本地测试配置中读取 ComfyUI Python 环境路径
+
+        目前仅作为调试/外部脚本调用时的参考，不在节点运行逻辑中自动使用。
+        """
+        section = cls._load_test_section()
+        if not section:
+            return None
+        python_env = section.get("python_env", "").strip()
+        return python_env or None
+
+    @classmethod
+    def load_network_workers_cap_from_config(cls) -> int:
+        """
+        从 config.ini 读取网络并发上限
+
+        配置项:
+        [gemini]
+        network_workers_cap = 4
+
+        仅用于限制同时发起的网络请求数量,避免在不稳定服务商上产生请求风暴。
+        最终并发度会在 [1, 8] 范围内被夹紧。
+        """
+        config_path = cls._get_config_path()
+        parser = configparser.ConfigParser()
+        default_cap = 4
+
+        if os.path.exists(config_path):
+            try:
+                parser.read(config_path, encoding="utf-8")
+                if parser.has_section("gemini"):
+                    value = parser.getint("gemini", "network_workers_cap", fallback=default_cap)
+                    # 防止配置异常,对并发上限做合理约束
+                    return max(1, min(value, 8))
+            except Exception as e:
+                logger.warning(f"读取 config 中的 network_workers_cap 失败: {e}")
+
+        return default_cap
+
+    @classmethod
     def load_config(cls):
         """从config.ini加载API key"""
         config_path = cls._get_config_path()
-        
+
         config = configparser.ConfigParser()
-        
+
         # 默认API key
         default_api_key = "your-api-key-here"
-        
+
+        # 若开启测试模式，优先从本地测试配置读取 API Key
+        test_api_key = cls._load_test_api_key()
+        if test_api_key:
+            return test_api_key
+
         # 尝试读取配置文件
         if os.path.exists(config_path):
             try:
@@ -605,9 +804,6 @@ class BananaImageNode:
                 "prompt": ("STRING", {
                     "multiline": True,
                     "default": "Peace and love"
-                }),
-                "api_base_url": ("STRING", {
-                    "default": "https://xinbaoapi.feng1994.xin"
                 }),
                 "api_key": ("STRING", {
                     "default": "",
@@ -957,7 +1153,7 @@ class BananaImageNode:
             "generationConfig": generation_config
         }
 
-    @retry_with_backoff(tries=3, delay=2, backoff=1, fast_fail_threshold=15.0)
+    @retry_with_backoff(tries=2, delay=2, backoff=1, fast_fail_threshold=20.0)
 
     def send_request(self, api_key: str, request_data: Dict, model_type: str,
                     api_base_url: str, timeout = 180) -> Dict:
@@ -977,27 +1173,38 @@ class BananaImageNode:
         headers['User-Agent'] = 'ComfyUI-Gemini-Node/2.1'
 
         request_start = time.time()
+        # 每次请求使用独立 Session,与初始版本行为保持一致
+        session = requests.Session()
+        session.headers.update(headers)
         try:
-            session = self._get_thread_session()
-            # 直接发送请求,Session会自动管理连接池
-            response = session.post(url, json=request_data, headers=headers, timeout=timeout)
+            response = session.post(url, json=request_data, timeout=timeout)
             request_time = time.time() - request_start
             try:
                 if response.status_code != 200:
                     # 记录非200响应的耗时，帮助诊断
                     error_msg = f"API返回 {response.status_code}: {response.text[:200]}"
                     logger.warning(f"请求耗时 {request_time:.2f}s 后收到错误: {error_msg}")
+                    # 这里仍然抛出通用异常,由重试装饰器根据错误信息决定是否重试
                     raise Exception(error_msg)
                 logger.info(f"API请求成功，耗时 {request_time:.2f}s")
                 return response.json()
             finally:
-                # 确保响应内容被完全读取,连接才能被复用
+                # 确保响应内容被完全读取
                 response.close()
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as e:
             timeout_duration = time.time() - request_start
-            raise Exception(f"请求超时（设置{timeout}秒，实际等待{timeout_duration:.1f}秒）")
+            # 保留 Timeout 异常类型,让重试装饰器能够识别为可重试错误
+            msg = f"请求超时（设置{timeout}秒，实际等待{timeout_duration:.1f}秒）"
+            logger.warning(msg)
+            raise requests.exceptions.Timeout(msg) from e
         except requests.exceptions.RequestException as e:
-            raise Exception(f"网络错误: {str(e)}")
+            # 对于连接中断、写入超时、SSL EOF 等网络异常,
+            # 保留原始 RequestException 类型,交由重试装饰器统一处理
+            logger.warning(f"网络错误: {str(e)}")
+            raise
+        finally:
+            # 独立 Session 使用完后立即关闭,避免在代理/不稳定网络下复用潜在坏连接
+            session.close()
 
     def extract_content(self, response_data: Dict) -> Tuple[List[str], str]:
         """提取响应中的图像和文本"""
@@ -1044,7 +1251,6 @@ class BananaImageNode:
             aspect_ratio,
             top_p,
             input_images_b64,
-            api_base_url,
             timeout,
             stagger_delay,
             decode_workers,
@@ -1063,7 +1269,8 @@ class BananaImageNode:
             self._ensure_not_interrupted()
             request_data = self.create_request_data(prompt, current_seed, aspect_ratio, top_p, input_images_b64)
             self._ensure_not_interrupted()
-            response_data = self.send_request(api_key, request_data, model_type, api_base_url, timeout)
+            effective_base_url = type(self)._get_effective_api_base_url()
+            response_data = self.send_request(api_key, request_data, model_type, effective_base_url, timeout)
             self._ensure_not_interrupted()
             base64_images, text_content = self.extract_content(response_data)
             decoded_tensor = None
@@ -1077,7 +1284,40 @@ class BananaImageNode:
                 )
                 decoded_count = decoded_tensor.shape[0]
 
-            logger.success(f"批次 {i+1} 完成 - 生成 {decoded_count} 张图片")
+            # 更明显地区分“有图返回”和“未返回任何图片”的情况
+            if decoded_count > 0:
+                logger.success(f"批次 {i+1} 完成 - 生成 {decoded_count} 张图片")
+            else:
+                # 简化日志输出,尽可能给出用户能理解的原因说明
+                reason = ""
+                # 1. 检查 finishReason 信息
+                try:
+                    if isinstance(response_data, dict):
+                        candidates = response_data.get("candidates") or []
+                        if candidates and isinstance(candidates[0], dict):
+                            finish_reason = candidates[0].get("finishReason") or ""
+                            if finish_reason:
+                                if finish_reason == "NO_IMAGE":
+                                    reason = "模型未生成任何图片（finishReason=NO_IMAGE，一般表示当前提示或参考图不触发图像输出，可能是内容被过滤或未通过安全审查）"
+                                else:
+                                    reason = f"模型未生成图片（finishReason={finish_reason}）"
+                except Exception:
+                    # 如果解析 finishReason 失败,忽略即可
+                    pass
+
+                # 2. 如果有文本内容,补充展示一小段
+                brief_text = (text_content or "").strip().replace("\n", " ")
+                if brief_text:
+                    if reason:
+                        reason = f"{reason}；模型返回文本: {brief_text[:100]}"
+                    else:
+                        reason = f"模型仅返回文本: {brief_text[:100]}"
+
+                # 3. 都没有就给一个通用说明
+                if not reason:
+                    reason = "模型未给出图片或说明文本，可能是服务端策略或参数设置导致本次未产出图片"
+
+                logger.warning(f"批次 {i+1} 完成，但未返回任何图片。{reason}")
 
             return {
                 'index': i,
@@ -1104,7 +1344,7 @@ class BananaImageNode:
                 'image_count': 0
             }
 
-    def generate_images(self, prompt, api_base_url, api_key="", model_type="gemini-2.5-flash-image",
+    def generate_images(self, prompt, api_key="", model_type="gemini-2.5-flash-image",
                        batch_size=1, aspect_ratio="Auto", seed=-1, top_p=0.95, max_workers=None,
                        image_1=None, image_2=None, image_3=None,
                        image_4=None, image_5=None):
@@ -1123,8 +1363,11 @@ class BananaImageNode:
             )
             return (error_tensor, error_msg)
 
+        # 统一使用内部隐藏的 Base URL（不接受前端传入）
+        effective_base_url = type(self)._get_effective_api_base_url()
+
         cost_factor = self.load_cost_factor_from_config()
-        balance_summary = self.get_cached_balance_text(api_base_url, resolved_api_key, cost_factor)
+        balance_summary = self.get_cached_balance_text(effective_base_url, resolved_api_key, cost_factor)
 
         start_time = time.time()
         raw_input_images = [image_1, image_2, image_3, image_4, image_5]
@@ -1132,12 +1375,13 @@ class BananaImageNode:
         encoded_input_images = self.prepare_input_images(input_tensors)
 
         # 固定配置
-        concurrent_mode = True  # 总是开启并发
-        stagger_delay = 0.0     # 不使用交错延迟
-        # 拆分网络超时：连接(10s) + 读取(90s)
-        # 连接超时缩短到10s，如果10s都连不上说明网络有问题
-        # 读取超时延长到90s，因为图像生成确实需要时间
-        connect_timeout = 10
+        concurrent_mode = True   # 总是开启并发
+        # 为网络请求增加轻微交错延迟,减少瞬时请求尖峰
+        stagger_delay = 0.2      # 每个批次相对前一个延迟 0.2 秒
+        # 拆分网络超时：连接(20s) + 读取(90s)
+        # 连接超时设置为20s，在代理/不稳定网络下更宽容
+        # 读取超时保持90s，因为图像生成确实需要时间
+        connect_timeout = 20
         read_timeout = 90
         request_timeout = (connect_timeout, read_timeout)
         continue_on_error = True  # 总是容错
@@ -1158,7 +1402,7 @@ class BananaImageNode:
         for i in range(batch_size):
             current_seed = base_seed + i if seed != -1 else -1
             tasks.append((i, current_seed, resolved_api_key, prompt, model_type, aspect_ratio,
-                          top_p, encoded_input_images, api_base_url, request_timeout, stagger_delay,
+                          top_p, encoded_input_images, request_timeout, stagger_delay,
                           decode_workers))
 
         # 显示任务开始信息
@@ -1180,7 +1424,9 @@ class BananaImageNode:
 
         if used_concurrency:
             # 对网络并发做更保守限流，降低远端抖动时的连锁阻塞概率
-            network_workers_cap = min(configured_workers, 4)
+            # network_workers_cap 可通过 config.ini 配置,默认 4
+            configured_network_cap = self.load_network_workers_cap_from_config()
+            network_workers_cap = min(configured_workers, configured_network_cap)
             actual_workers = min(network_workers_cap, batch_size)
             # 手动管理线程池，避免在超时场景下因 wait=True 阻塞退出
             executor = ThreadPoolExecutor(max_workers=actual_workers)
@@ -1326,6 +1572,8 @@ class BananaImageNode:
         time_info = f"总耗时: {total_time:.2f}s，平均 {avg_time:.2f}s/张"
         if actual_count != batch_size:
             time_info += f" ⚠️ 请求{batch_size}张，实际生成{actual_count}张"
+            # 若实际生成数量少于请求数量，在日志中额外给出明显提示
+            logger.warning(f"部分批次未返回图片：请求 {batch_size} 张，实际上只生成 {actual_count} 张，请查看上方各批次日志中的“未返回任何图片”提示")
 
         combined_text = f"{success_info}\n{time_info}"
         if all_texts:
@@ -1348,3 +1596,5 @@ NODE_CLASS_MAPPINGS = {"BananaImageNode": BananaImageNode}
 NODE_DISPLAY_NAME_MAPPINGS = {"BananaImageNode": "心宝❤Banana"}
 
 BananaImageNode.ensure_balance_route()
+
+

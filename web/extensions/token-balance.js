@@ -3,7 +3,6 @@ import { api } from "/scripts/api.js";
 
 const EXTENSION = "banana.tokenBalance";
 const TARGET_NODES = new Set(["BananaImageNode"]);
-const DEFAULT_BASE_URL = "https://xinbaoapi.feng1994.xin";
 const WECHAT_ID = "Li_18727107073";
 const QR_IMAGE_URL = new URL("./xinbao.png", import.meta.url).toString();
 const ACTION_BUTTON_DEFS = [
@@ -265,14 +264,6 @@ function ensureWidgets(node) {
   return node.__bananaBalanceWidgets;
 }
 
-function getApiBaseUrl(node) {
-  const widget = node.widgets?.find((w) => w.name === "api_base_url");
-  if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
-    return widget.value.trim();
-  }
-  return DEFAULT_BASE_URL;
-}
-
 function getApiKey(node) {
   const widget = node.widgets?.find((w) => w.name === "api_key");
   if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
@@ -295,9 +286,8 @@ function formatSummary(data) {
 }
 
 async function requestBalance(node, refresh) {
-  const baseUrl = getApiBaseUrl(node);
   const apiKey = getApiKey(node);
-  let url = `/banana/token_usage?base_url=${encodeURIComponent(baseUrl)}&refresh=${refresh ? 1 : 0}`;
+  let url = `/banana/token_usage?refresh=${refresh ? 1 : 0}`;
   if (apiKey) {
     url += `&api_key=${encodeURIComponent(apiKey)}`;
   }

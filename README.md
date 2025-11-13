@@ -56,6 +56,11 @@ Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana �
 - 🎯 **错误提示** - 失败时生成可视化错误提示图像
 - 🌈 **彩色日志** - 线程安全的彩色日志系统,支持进度条
 
+> 💡 **关于批量/并发抽卡的小提示**  
+> 节点支持一次最多生成 8 张图像,方便你快速“抽卡”拿到满意结果。但需要注意:在高并发/大批量(尤其是 8 张)的情况下,Google 官方有一定概率返回 `finishReason=NO_IMAGE` 的响应——即 **API 调用请求成功且会正常计费,但本次响应体中不包含任何图片**。这属于模型/服务端的行为,不是节点丢图。实测经验建议:  
+> - 常规使用时将 `batch_size` 控制在 **1-4 张** 以内,兼顾效率与稳定性;  
+> - 仅在明确接受“偶尔不返图但仍计费”的情况下再尝试 8 张高并发抽卡。
+
 ## 🚀 安装
 
 ### 方法 1: 通过 手动安装
@@ -86,7 +91,7 @@ cp config.ini.example config.ini
 api_key = YOUR_API_KEY_HERE
 
 # Token 方便用户查询剩余额度token转换系数(用户请勿调整)
-balance_cost_factor = 0.5
+balance_cost_factor = 0.6
 
 # 最大并发工作线程数(建议 4-8)
 max_workers = 8
@@ -126,7 +131,6 @@ max_workers = 8
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | **prompt** | STRING | "Peace and love" | 文本提示词,支持多行输入 |
-| **api_base_url** | STRING | https://xinbaoapi.feng1994.xin | API 基础 URL |
 | **api_key** | STRING | "" | Gemini API Key(留空则从配置文件读取) |
 | **model_type** | STRING | gemini-2.5-flash-image | 使用的模型类型 |
 | **batch_size** | INT | 1 | 批量生成数量(1-8) |
@@ -151,15 +155,30 @@ max_workers = 8
 
 ### 并发控制
 
-在 `config.ini` 中调整 `max_workers` 参数来控制并发线程数:
-- **低端设备**: 2-4
-- **中端设备**: 4-8
-- **高端设备**: 8+
+在 `config.ini` 中可以配置两类并发相关参数:
+
+- `max_workers`: 本地 CPU 侧的解码/处理并发度
+  - **低端设备**: 2-4
+  - **中端设备**: 4-8
+  - **高端设备**: 8+
+- `network_workers_cap`: 网络并发上限(同时发起的网络请求数量,范围 1-8)
+  - **网络稳定/内网服务**: 建议 4
+  - **网络不稳定/代理/VPN/转发服务商**: 建议 2-3(降低请求雪崩概率)
+
+示例配置:
+
+```ini
+[gemini]
+api_key = YOUR_API_KEY_HERE
+balance_cost_factor = 0.6
+max_workers = 4           # 本地 CPU 并发
+network_workers_cap = 4   # 网络并发上限
+```
 
 ### 错误处理
 
 当生成失败时,节点会:
-1. 自动重试(最多 3 次,指数退避)
+1. 自动重试(最多 2 次,指数退避)
 2. 如果所有重试都失败,返回包含错误信息的可视化图像
 3. 在控制台输出详细的错误日志
 
@@ -225,7 +244,6 @@ banana/
 **解决方案**:
 - 检查 API Key 是否正确
 - 验证网络连接
-- 查看 `api_base_url` 是否可访问
 - 检查账户余额是否充足
 
 ### 问题:生成速度慢

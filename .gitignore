@@ -16,7 +16,8 @@ ENV/
 .venv
 
 # 敏感配置文件（包含 API Key）
-config.ini
+config.ini                        # 正常运行配置（可以填正式 key，但不提交）
+banana_gemini_test.local.ini      # 本地测试专用配置（含测试 key，不提交）
 tests/.env.banana.test
 
 # IDE 配置文件
@@ -39,6 +40,7 @@ verify_integration.py
 .serena/
 .spec-workflow/
 openspec/
+tools/
 
 # 文档和开发笔记（如果不想公开）
 AGENTS.md
@@ -59,3 +61,6 @@ RETRY_STRATEGY.md
 VALIDATION_REPORT.md
 PERFORMANCE_OPTIMIZATION_REVISED.md
 PERFORMANCE_OPTIMIZATION.md
+banana_gemini_test.local.ini
+.test/run_batch8_test.py
+.test/temp_gemini_test.py
