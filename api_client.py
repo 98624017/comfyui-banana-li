@@ -1,0 +1,297 @@
+from __future__ import annotations
+
+import json
+import os
+import sys
+import threading
+import time
+from typing import Any, Dict, List, Optional, Tuple
+
+import requests
+from requests.adapters import HTTPAdapter
+
+MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
+if MODULE_DIR not in sys.path:
+    sys.path.insert(0, MODULE_DIR)
+
+from logger import logger  # type: ignore
+
+
+class GeminiApiClient:
+    """封装与 Gemini 兼容图像接口交互的 HTTP 客户端。"""
+
+    _DEFAULT_CONNECT_TIMEOUT = 10.0
+    _DEFAULT_READ_TIMEOUT = 90.0
+    _MAX_RETRIES = 3
+    _BASE_BACKOFF = 2.0
+    _RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
+    _ASPECT_RATIO_ALIASES: Dict[str, str] = {
+        "1:1": "1:1",
+        "2:3": "2:3",
+        "3:2": "3:2",
+        "3:4": "3:4",
+        "4:3": "4:3",
+        "4:5": "4:5",
+        "5:4": "5:4",
+        "9:16": "9:16",
+        "16:9": "16:9",
+        "21:9": "21:9",
+    }
+
+    def __init__(self, config_manager, logger_instance=logger) -> None:
+        self.config_manager = config_manager
+        self.logger = logger_instance
+        self._thread_local = threading.local()
+
+    # --- request 构造逻辑 -------------------------------------------------
+    def _normalize_aspect_ratio(self, aspect_ratio: Optional[str]) -> Optional[str]:
+        if not aspect_ratio or aspect_ratio.lower() == "auto":
+            return None
+        normalized = aspect_ratio.strip()
+        return self._ASPECT_RATIO_ALIASES.get(normalized, normalized)
+
+    def create_request_data(
+        self,
+        prompt: str,
+        seed: int,
+        aspect_ratio: str,
+        top_p: float,
+        input_images_b64: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        prompt_text = (prompt or "").strip()
+        if not prompt_text and not input_images_b64:
+            raise ValueError("请输入提示词或提供至少一张参考图像")
+
+        parts: List[Dict[str, Any]] = []
+        if prompt_text:
+            parts.append({"text": prompt_text})
+
+        for encoded in input_images_b64 or []:
+            if not encoded:
+                continue
+            parts.append({
+                "inlineData": {
+                    "mimeType": "image/png",
+                    "data": encoded,
+                }
+            })
+
+        content = {"role": "user", "parts": parts}
+        generation_config: Dict[str, Any] = {"topP": float(top_p)}
+        if isinstance(seed, int) and seed >= 0:
+            generation_config["seed"] = seed
+
+        request_body: Dict[str, Any] = {
+            "contents": [content],
+            "generationConfig": generation_config,
+        }
+
+        aspect = self._normalize_aspect_ratio(aspect_ratio)
+        if aspect:
+            request_body["imageGenerationConfig"] = {"aspectRatio": aspect}
+
+        return request_body
+
+    # --- HTTP 发送逻辑 ----------------------------------------------------
+    def _get_session(self) -> requests.Session:
+        session = getattr(self._thread_local, "session", None)
+        if session is None:
+            session = requests.Session()
+            adapter = HTTPAdapter(pool_connections=16, pool_maxsize=32, max_retries=0)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+            self._thread_local.session = session
+        return session
+
+    def _build_headers(self, api_key: str) -> Dict[str, str]:
+        return {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+            "X-API-Key": api_key,
+            "X-Banana-Client": "comfyui-banana-gemini",
+        }
+
+    def _resolve_timeout(self, timeout: Optional[Any]) -> Tuple[float, float]:
+        if isinstance(timeout, (tuple, list)) and len(timeout) == 2:
+            connect = float(timeout[0]) if timeout[0] else self._DEFAULT_CONNECT_TIMEOUT
+            read = float(timeout[1]) if timeout[1] else self._DEFAULT_READ_TIMEOUT
+        elif isinstance(timeout, (int, float)) and timeout > 0:
+            connect = read = float(timeout)
+        else:
+            connect = self._DEFAULT_CONNECT_TIMEOUT
+            read = self._DEFAULT_READ_TIMEOUT
+        return (max(1.0, connect), max(5.0, read))
+
+    def _build_generate_content_url(self, base_url: str, model_type: str) -> str:
+        base = (base_url or "").strip().rstrip("/")
+        if not base:
+            raise ValueError("未配置有效的 API Base URL")
+        model = (model_type or "").strip()
+        if not model:
+            raise ValueError("未指定模型类型")
+
+        if model.startswith("models/"):
+            model = model.split("/", 1)[1]
+        if model.startswith("v1beta/"):
+            model = model.split("/", 1)[1]
+
+        if base.endswith(":generateContent"):
+            return base
+        if ":generate" in base:
+            return base
+        if base.endswith(f"/{model}:generateContent"):
+            return base
+        if base.endswith(f"/{model}"):
+            return f"{base}:generateContent"
+        if "/models/" in base:
+            return f"{base.rstrip('/')}:generateContent"
+        return f"{base}/v1beta/models/{model}:generateContent"
+
+    def send_request(
+        self,
+        api_key: str,
+        request_data: Dict[str, Any],
+        model_type: str,
+        api_base_url: str,
+        timeout: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        sanitized_key = self.config_manager.sanitize_api_key(api_key)
+        if not sanitized_key:
+            raise ValueError("请填写有效的 API Key")
+
+        url = self._build_generate_content_url(api_base_url, model_type)
+        session = self._get_session()
+        verify_ssl = self.config_manager.should_verify_ssl()
+        connect_timeout, read_timeout = self._resolve_timeout(timeout)
+        headers = self._build_headers(sanitized_key)
+
+        payload = json.dumps(request_data, ensure_ascii=False)
+        attempt_delay = self._BASE_BACKOFF
+        last_error: Optional[BaseException] = None
+
+        for attempt in range(1, self._MAX_RETRIES + 1):
+            start = time.time()
+            try:
+                response = session.post(
+                    url,
+                    data=payload,
+                    headers=headers,
+                    timeout=(connect_timeout, read_timeout),
+                    verify=verify_ssl,
+                )
+                if response.status_code in self._RETRYABLE_STATUS and attempt < self._MAX_RETRIES:
+                    raise requests.HTTPError(
+                        f"HTTP {response.status_code}", response=response
+                    )
+                response.raise_for_status()
+                return response.json()
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                last_error = exc
+                duration = time.time() - start
+                self.logger.warning(
+                    f"请求 {model_type} 超时（{duration:.1f}s），尝试 {attempt}/{self._MAX_RETRIES}"
+                )
+            except requests.HTTPError as exc:
+                last_error = exc
+                status = exc.response.status_code if exc.response else None
+                body = exc.response.text if exc.response is not None else str(exc)
+                truncated = body[:300]
+                if status in self._RETRYABLE_STATUS and attempt < self._MAX_RETRIES:
+                    self.logger.warning(
+                        f"HTTP {status}，将重试：{truncated}"
+                    )
+                else:
+                    raise RuntimeError(
+                        f"远端返回异常（HTTP {status}）：{truncated}"
+                    ) from exc
+            except requests.RequestException as exc:
+                last_error = exc
+                raise RuntimeError(f"HTTP 请求失败：{exc}") from exc
+
+            if attempt < self._MAX_RETRIES:
+                time.sleep(attempt_delay)
+                attempt_delay *= 1.5
+
+        raise RuntimeError(f"连续 {self._MAX_RETRIES} 次请求失败：{last_error}")
+
+    # --- 响应解析 --------------------------------------------------------
+    def extract_content(self, response_data: Dict[str, Any]) -> Tuple[List[str], str]:
+        if not isinstance(response_data, dict):
+            raise ValueError("接口返回数据格式异常")
+
+        images: List[str] = []
+        texts: List[str] = []
+        candidates = response_data.get("candidates") or []
+
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            content = candidate.get("content") or {}
+            parts = content.get("parts") or []
+            for part in parts:
+                if not isinstance(part, dict):
+                    continue
+                inline = part.get("inlineData")
+                if inline and isinstance(inline, dict):
+                    data = inline.get("data")
+                    mime = inline.get("mimeType", "")
+                    if data and isinstance(data, str) and mime.startswith("image/"):
+                        images.append(data)
+                        continue
+                text_value = part.get("text")
+                if isinstance(text_value, str) and text_value.strip():
+                    texts.append(text_value.strip())
+
+        combined_text = "\n".join(texts).strip()
+        return images, combined_text
+
+    # --- 余额查询 --------------------------------------------------------
+    def _build_balance_urls(self, base_url: str) -> List[str]:
+        base = (base_url or "").strip().rstrip("/")
+        if not base:
+            raise ValueError("未配置 Balance API 地址")
+        return [
+            f"{base}/v1/token_usage",
+            f"{base}/token_usage",
+            f"{base}/banana/token_usage",
+        ]
+
+    def fetch_token_usage(
+        self,
+        api_base_url: str,
+        api_key: str,
+        timeout: int = 15,
+    ) -> Dict[str, Any]:
+        sanitized_key = self.config_manager.sanitize_api_key(api_key)
+        if not sanitized_key:
+            raise ValueError("请提供有效的 API Key 后再查询余额")
+
+        session = self._get_session()
+        verify_ssl = self.config_manager.should_verify_ssl()
+        timeout_tuple = self._resolve_timeout(timeout)
+        errors: List[str] = []
+
+        for url in self._build_balance_urls(api_base_url):
+            try:
+                response = session.get(
+                    url,
+                    headers=self._build_headers(sanitized_key),
+                    timeout=timeout_tuple,
+                    verify=verify_ssl,
+                )
+                if response.status_code == 404:
+                    errors.append(f"{url} -> 404")
+                    continue
+                response.raise_for_status()
+                payload = response.json()
+                if not isinstance(payload, dict):
+                    raise ValueError("余额接口返回格式错误")
+                return payload
+            except (requests.RequestException, ValueError) as exc:
+                errors.append(f"{url}: {exc}")
+
+        raise RuntimeError("余额查询失败: " + "; ".join(errors))
+
+
+__all__ = ["GeminiApiClient"]

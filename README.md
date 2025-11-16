@@ -162,6 +162,7 @@ max_workers = 8
   - **中端设备**: 4-8
   - **高端设备**: 8+
 - `network_workers_cap`: 网络并发上限(同时发起的网络请求数量,范围 1-8)
+- `verify_ssl`: 是否验证 SSL 证书。仅在你确定代理/目标服务可信且无法正确安装根证书时才可设为 `false`，默认 `true`。
   - **网络稳定/内网服务**: 建议 4
   - **网络不稳定/代理/VPN/转发服务商**: 建议 2-3(降低请求雪崩概率)
 
@@ -173,6 +174,7 @@ api_key = YOUR_API_KEY_HERE
 balance_cost_factor = 0.6
 max_workers = 4           # 本地 CPU 并发
 network_workers_cap = 4   # 网络并发上限
+verify_ssl = true         # 是否验证 SSL 证书
 ```
 
 ### 错误处理

@@ -15,4 +15,7 @@ max_workers = 4
 # - 不稳定服务商/代理/VPN：2-3（降低请求雪崩概率）
 network_workers_cap = 4
 
+# 是否验证 SSL 证书（默认为 true）。
+# 仅当你非常确定所连接的代理/服务安全可信、且无法正确安装根证书时，才考虑改为 false。
+verify_ssl = true
 

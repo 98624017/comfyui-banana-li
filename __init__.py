@@ -22,14 +22,27 @@ if str(current_dir) not in sys.path:
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
+# 需要跳过的文件列表
+SKIP_FILES = {
+    "__init__.py",
+    "logger.py",
+    "config_manager.py",
+    "api_client.py",
+    "image_codec.py",
+    "balance_service.py",
+    "task_runner.py",
+    "test_logger.py",
+    "test_enhancements.py",
+    "verify_integration.py",
+}
+
 # 显示加载器标题
 logger.header("🍌 Banana Node Loader")
 
 # 自动查找并加载所有Python文件中的节点
 for py_file in current_dir.glob("*.py"):
     # 跳过特殊文件和测试文件
-    skip_files = ["__init__.py", "logger.py", "test_logger.py", "test_enhancements.py", "verify_integration.py"]
-    if py_file.name in skip_files:
+    if py_file.name in SKIP_FILES:
         continue
 
     try:
