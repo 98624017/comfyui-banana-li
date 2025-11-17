@@ -63,11 +63,27 @@ class BalanceService:
             return True
         return age > self._cache_ttl
 
-    def refresh_snapshot(self, api_base_url: str, api_key: str, timeout: int = 15) -> None:
+    def refresh_snapshot(
+        self,
+        api_base_url: str,
+        api_key: str,
+        timeout: int = 15,
+        bypass_proxy: Optional[bool] = None,
+    ) -> None:
         sanitized = self.config_manager.sanitize_api_key(api_key)
         if not sanitized:
             raise ValueError("未配置有效的 API Key")
-        payload = self.api_client.fetch_token_usage(api_base_url, sanitized, timeout=timeout)
+        bypass = (
+            self.config_manager.should_bypass_proxy()
+            if bypass_proxy is None
+            else bool(bypass_proxy)
+        )
+        payload = self.api_client.fetch_token_usage(
+            api_base_url,
+            sanitized,
+            timeout=timeout,
+            bypass_proxy=bypass,
+        )
         self._store_snapshot(api_base_url, sanitized, payload)
 
     @classmethod
@@ -174,6 +190,12 @@ class BalanceService:
             base_url = self.config_manager.get_effective_api_base_url()
             refresh = self._parse_bool(request.rel_url.query.get("refresh"))
             api_key_from_request = (request.rel_url.query.get("api_key") or "").strip()
+            bypass_query_value = request.rel_url.query.get("bypass_proxy")
+            bypass_from_query = (
+                self._parse_bool(bypass_query_value)
+                if bypass_query_value is not None
+                else None
+            )
             api_key = (
                 self.config_manager.sanitize_api_key(api_key_from_request)
                 or self.config_manager.sanitize_api_key(self.config_manager.load_api_key())
@@ -207,7 +229,12 @@ class BalanceService:
             try:
                 await loop.run_in_executor(
                     None,
-                    partial(self.refresh_snapshot, base_url, api_key)
+                    partial(
+                        self.refresh_snapshot,
+                        base_url,
+                        api_key,
+                        bypass_proxy=bypass_from_query,
+                    )
                 )
                 snapshot = self._get_snapshot(base_url, api_key)
                 if snapshot is None:

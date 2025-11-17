@@ -196,19 +196,28 @@ verify_ssl = true         # 是否验证 SSL 证书
 ### 项目结构
 
 ```
-banana/
+comfyui-banana-gemini/
 ├── __init__.py                    # 节点注册入口
-├── Gemini_Imagen_Generator.py    # 主节点实现
-├── logger.py                      # 日志系统
-├── config.ini                     # 配置文件(需自行创建)
+├── Gemini_Imagen_Generator.py    # 主节点实现(核心业务逻辑)
+├── logger.py                      # 零依赖线程安全彩色日志系统
+├── config_manager.py              # 配置文件管理模块
+├── api_client.py                  # HTTP 请求和重试逻辑
+├── image_codec.py                 # 图像 Base64 编解码和缓存
+├── balance_service.py             # 余额查询和 Web 路由注册
+├── task_runner.py                 # 并发任务调度和进度追踪
+├── config.ini                     # 配置文件(需自行创建,见下方说明)
 ├── config.ini.example             # 配置模板
+├── requirements.txt               # Python 依赖列表
 ├── web/
 │   └── extensions/
-│       ├── token-balance.js       # 余额显示扩展
-│       └── xinbao.png            # 图标
-├── .gitignore
-├── README.md
-└── LICENSE
+│       ├── token-balance.js       # 余额显示扩展(Web UI)
+│       └── xinbao.png            # 节点图标
+├── tools/
+│   ├── INTERNAL_API_BASE_URL_TOOL.md    # 内部 API 工具说明
+│   └── set_api_base_url.ps1      # API 地址配置脚本
+├── CLAUDE.md                      # 开发指南(给 AI 编程助手用)
+├── README.md                      # 本文档
+└── LICENSE                        # MIT 开源协议
 ```
 
 ### 依赖库

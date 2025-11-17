@@ -17,10 +17,7 @@ class ConfigManager:
     """集中管理 Banana Gemini 节点的配置与测试模式逻辑。"""
 
     _ENC_KEY_PARTS = (3, 4)
-    _DEFAULT_API_BASE_URL_CODEPOINTS = [
-        104, 116, 116, 112, 115, 58, 47, 47, 97, 112, 105, 46, 103, 108, 109, 98,
-        105, 103, 109, 111, 100, 101, 108, 46, 109, 101
-    ]
+    _DEFAULT_API_BASE_URL_CODEPOINTS = [104, 116, 116, 112, 115, 58, 47, 47, 97, 112, 105, 46, 97, 97, 98, 97, 111, 46, 116, 111, 112]
 
     _CONFIG_SECTION = "gemini"
     _CONFIG_KEY_API_BASE_URL_ENC = "api_base_url_enc"
@@ -253,3 +250,21 @@ class ConfigManager:
             except Exception as exc:
                 logger.warning(f"读取 config 中的 verify_ssl 失败: {exc}")
         return True
+
+    def should_bypass_proxy(self) -> bool:
+        parser = configparser.ConfigParser()
+        if os.path.exists(self._config_path):
+            try:
+                parser.read(self._config_path, encoding="utf-8")
+                if parser.has_section(self._CONFIG_SECTION):
+                    value = parser.get(
+                        self._CONFIG_SECTION,
+                        "bypass_proxy",
+                        fallback="false"
+                    )
+                    return self._parse_bool(str(value).strip())
+            except Exception as exc:
+                logger.warning(f"读取 config 中的 bypass_proxy 失败: {exc}")
+        return False
+
+

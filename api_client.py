@@ -22,7 +22,7 @@ class GeminiApiClient:
 
     _DEFAULT_CONNECT_TIMEOUT = 10.0
     _DEFAULT_READ_TIMEOUT = 90.0
-    _MAX_RETRIES = 3
+    _MAX_RETRIES = 2
     _BASE_BACKOFF = 2.0
     _RETRYABLE_STATUS = {408, 409, 425, 429, 500, 502, 503, 504}
     _ASPECT_RATIO_ALIASES: Dict[str, str] = {
@@ -77,30 +77,39 @@ class GeminiApiClient:
             })
 
         content = {"role": "user", "parts": parts}
-        generation_config: Dict[str, Any] = {"topP": float(top_p)}
+        generation_config: Dict[str, Any] = {
+            "topP": float(top_p),
+            "maxOutputTokens": 8192,
+            "responseModalities": ["IMAGE"],
+        }
         if isinstance(seed, int) and seed >= 0:
             generation_config["seed"] = seed
+
+        # 修复：imageConfig 应该在 generationConfig 里面，而不是 imageGenerationConfig
+        aspect = self._normalize_aspect_ratio(aspect_ratio)
+        if aspect:
+            generation_config["imageConfig"] = {"aspectRatio": aspect}
 
         request_body: Dict[str, Any] = {
             "contents": [content],
             "generationConfig": generation_config,
         }
 
-        aspect = self._normalize_aspect_ratio(aspect_ratio)
-        if aspect:
-            request_body["imageGenerationConfig"] = {"aspectRatio": aspect}
-
         return request_body
 
     # --- HTTP 发送逻辑 ----------------------------------------------------
-    def _get_session(self) -> requests.Session:
-        session = getattr(self._thread_local, "session", None)
+    def _get_session(self, bypass_proxy: bool = False) -> requests.Session:
+        attr_name = "session_no_proxy" if bypass_proxy else "session"
+        session = getattr(self._thread_local, attr_name, None)
         if session is None:
             session = requests.Session()
             adapter = HTTPAdapter(pool_connections=16, pool_maxsize=32, max_retries=0)
             session.mount("http://", adapter)
             session.mount("https://", adapter)
-            self._thread_local.session = session
+            if bypass_proxy:
+                session.trust_env = False
+                session.proxies = {}
+            setattr(self._thread_local, attr_name, session)
         return session
 
     def _build_headers(self, api_key: str) -> Dict[str, str]:
@@ -155,13 +164,14 @@ class GeminiApiClient:
         model_type: str,
         api_base_url: str,
         timeout: Optional[Any] = None,
+        bypass_proxy: bool = False,
     ) -> Dict[str, Any]:
         sanitized_key = self.config_manager.sanitize_api_key(api_key)
         if not sanitized_key:
             raise ValueError("请填写有效的 API Key")
 
         url = self._build_generate_content_url(api_base_url, model_type)
-        session = self._get_session()
+        session = self._get_session(bypass_proxy)
         verify_ssl = self.config_manager.should_verify_ssl()
         connect_timeout, read_timeout = self._resolve_timeout(timeout)
         headers = self._build_headers(sanitized_key)
@@ -251,26 +261,25 @@ class GeminiApiClient:
         base = (base_url or "").strip().rstrip("/")
         if not base:
             raise ValueError("未配置 Balance API 地址")
-        return [
-            f"{base}/v1/token_usage",
-            f"{base}/token_usage",
-            f"{base}/banana/token_usage",
-        ]
+        # 仅使用 new-api 文档中的标准用量查询端点
+        return [f"{base}/api/usage/token"]
 
     def fetch_token_usage(
         self,
         api_base_url: str,
         api_key: str,
         timeout: int = 15,
+        bypass_proxy: bool = False,
     ) -> Dict[str, Any]:
         sanitized_key = self.config_manager.sanitize_api_key(api_key)
         if not sanitized_key:
             raise ValueError("请提供有效的 API Key 后再查询余额")
 
-        session = self._get_session()
+        session = self._get_session(bypass_proxy)
         verify_ssl = self.config_manager.should_verify_ssl()
         timeout_tuple = self._resolve_timeout(timeout)
-        errors: List[str] = []
+        # 内部错误详情仅写入日志，不直接暴露真实源站给前端用户
+        internal_errors: List[str] = []
 
         for url in self._build_balance_urls(api_base_url):
             try:
@@ -281,17 +290,29 @@ class GeminiApiClient:
                     verify=verify_ssl,
                 )
                 if response.status_code == 404:
-                    errors.append(f"{url} -> 404")
+                    internal_errors.append(f"{url} -> 404")
                     continue
                 response.raise_for_status()
                 payload = response.json()
                 if not isinstance(payload, dict):
                     raise ValueError("余额接口返回格式错误")
                 return payload
-            except (requests.RequestException, ValueError) as exc:
-                errors.append(f"{url}: {exc}")
+            except ValueError as exc:
+                internal_errors.append(f"{url}: {exc}")
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response else None
+                internal_errors.append(f"{url}: HTTP {status} - {exc}")
+            except requests.RequestException as exc:
+                internal_errors.append(f"{url}: 网络错误 - {exc}")
 
-        raise RuntimeError("余额查询失败: " + "; ".join(errors))
+        if internal_errors:
+            # 在日志中保留详细信息，便于开发者排查
+            self.logger.warning(
+                "余额查询失败，尝试的地址与错误详情: " + "; ".join(internal_errors)
+            )
+
+        # 对前端只返回抽象错误，避免暴露真实源站地址
+        raise RuntimeError("余额查询失败，请检查 API 服务与网络状态，或联系服务提供者")
 
 
 __all__ = ["GeminiApiClient"]

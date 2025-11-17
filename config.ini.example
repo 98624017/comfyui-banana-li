@@ -19,3 +19,6 @@ network_workers_cap = 4
 # 仅当你非常确定所连接的代理/服务安全可信、且无法正确安装根证书时，才考虑改为 false。
 verify_ssl = true
 
+# 是否绕过系统代理（默认为 false）
+# 某些系统代理/安全软件会强制拦截 HTTPS 请求，导致连接失败，可尝试设为 true
+bypass_proxy = false

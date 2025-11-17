@@ -29,9 +29,12 @@ tests/.env.banana.test
 .DS_Store
 
 # 测试和临时文件
+test/                             # 测试脚本目录
 test_*.py
 test_*.py.bak
 test_*.py.tmp
+show_*.py                         # 演示脚本
+verify_*.py                       # 验证脚本
 *.bak
 *.tmp
 verify_integration.py
@@ -64,3 +67,10 @@ PERFORMANCE_OPTIMIZATION.md
 banana_gemini_test.local.ini
 .test/run_batch8_test.py
 .test/temp_gemini_test.py
+CHANGES_SUMMARY.md
+FIX_REPORT.md
+test/show_complete_request.py
+test/show_full_json.py
+test/show_request_body.py
+test/verify_fix.py
+test/verify_fixed_params.py

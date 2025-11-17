@@ -100,6 +100,9 @@ class BananaImageNode:
                 "image_3": ("IMAGE",),
                 "image_4": ("IMAGE",),
                 "image_5": ("IMAGE",),
+                "bypass_proxy": ("BOOLEAN", {
+                    "default": CONFIG_MANAGER.should_bypass_proxy()
+                }),
             }
         }
     
@@ -133,6 +136,10 @@ class BananaImageNode:
             timeout,
             stagger_delay,
             decode_workers,
+            bypass_proxy,
+            request_start_event,
+            request_start_time_holder,
+            request_start_lock,
         ) = args
 
         self._ensure_not_interrupted()
@@ -155,12 +162,18 @@ class BananaImageNode:
             )
             self._ensure_not_interrupted()
             effective_base_url = self.config_manager.get_effective_api_base_url()
+            if not request_start_event.is_set():
+                with request_start_lock:
+                    if not request_start_event.is_set():
+                        request_start_time_holder[0] = time.time()
+                        request_start_event.set()
             response_data = API_CLIENT.send_request(
                 api_key,
                 request_data,
                 model_type,
                 effective_base_url,
-                timeout
+                timeout,
+                bypass_proxy=bypass_proxy,
             )
             self._ensure_not_interrupted()
             base64_images, text_content = API_CLIENT.extract_content(response_data)
@@ -231,7 +244,7 @@ class BananaImageNode:
     def generate_images(self, prompt, api_key="", model_type="gemini-2.5-flash-image",
                        batch_size=1, aspect_ratio="Auto", seed=-1, top_p=0.95, max_workers=None,
                        image_1=None, image_2=None, image_3=None,
-                       image_4=None, image_5=None):
+                       image_4=None, image_5=None, bypass_proxy=None):
 
         # 解析 API Key：优先使用节点输入，留空时回退 config
         sanitized_input_key = self.config_manager.sanitize_api_key(api_key)
@@ -252,6 +265,10 @@ class BananaImageNode:
         # 统一使用内部隐藏的 Base URL（不接受前端传入）
         effective_base_url = self.config_manager.get_effective_api_base_url()
 
+        config_bypass_proxy = self.config_manager.should_bypass_proxy()
+        bypass_proxy_flag = (
+            bool(bypass_proxy) if bypass_proxy is not None else config_bypass_proxy
+        )
         cost_factor = self.config_manager.load_cost_factor()
         balance_summary = self.balance_service.get_cached_balance_text(effective_base_url, resolved_api_key, cost_factor)
 
@@ -273,6 +290,9 @@ class BananaImageNode:
         continue_on_error = True  # 总是容错
         configured_workers = self.config_manager.load_max_workers()
         decode_workers = max(1, configured_workers)
+        request_start_event = threading.Event()
+        request_start_time_holder: List[Optional[float]] = [None]
+        request_start_lock = threading.Lock()
 
         if seed == -1:
             base_seed = random.randint(0, 102400)
@@ -289,7 +309,8 @@ class BananaImageNode:
             current_seed = base_seed + i if seed != -1 else -1
             tasks.append((i, current_seed, resolved_api_key, prompt, model_type, aspect_ratio,
                           top_p, encoded_input_images, request_timeout, stagger_delay,
-                          decode_workers))
+                          decode_workers, bypass_proxy_flag,
+                          request_start_event, request_start_time_holder, request_start_lock))
 
         # 显示任务开始信息
         logger.header("🎨 Gemini 图像生成任务")
@@ -338,9 +359,11 @@ class BananaImageNode:
             continue_on_error,
             progress_callback,
         )
+        request_start_time = request_start_time_holder[0] or start_time
 
         if not results:
-            error_text = f"未生成任何图像\n总耗时: {time.time() - start_time:.2f}s"
+            elapsed = time.time() - request_start_time
+            error_text = f"未生成任何图像\n总耗时: {elapsed:.2f}s"
             if balance_summary:
                 error_text = f"{balance_summary}\n\n{error_text}"
             logger.error(error_text)
@@ -363,7 +386,7 @@ class BananaImageNode:
                 if not continue_on_error:
                     break
 
-        total_time = time.time() - start_time
+        total_time = time.time() - request_start_time
 
         if not decoded_tensors or total_generated_images == 0:
             error_text = f"未生成任何图像\n总耗时: {total_time:.2f}s\n\n" + "\n".join(all_texts)
