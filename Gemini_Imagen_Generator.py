@@ -125,8 +125,8 @@ class BananaImageNode:
                     "tooltip": "参考图像 5，可为空；用于图生图或多图融合"
                 }),
                 "绕过代理": ("BOOLEAN", {
-                    "default": CONFIG_MANAGER.should_bypass_proxy(),
-                    "tooltip": "是否绕过系统/环境代理直接访问服务端；默认跟随 config.ini"
+                    "default": True,
+                    "tooltip": "是否绕过系统/环境代理直接访问服务端；默认开启，适合直连国内中转服务"
                 }),
                 "高峰模式": ("BOOLEAN", {
                     "default": False,
@@ -275,7 +275,7 @@ class BananaImageNode:
     def generate_images(self, prompt, api_key="", model_type="gemini-2.5-flash-image",
                        batch_size=1, aspect_ratio="Auto", seed=-1, top_p=0.95, max_workers=None,
                        image_1=None, image_2=None, image_3=None,
-                       image_4=None, image_5=None, bypass_proxy=None, peak_mode=False):
+                       image_4=None, image_5=None, 绕过代理=None, 高峰模式=False):
 
         # 解析 API Key：优先使用节点输入，留空时回退 config
         # 其中以 "fix" 前缀开头的 Key 视为前台临时测试模式，仅在节点侧临时切换 Base URL，
@@ -315,10 +315,8 @@ class BananaImageNode:
             )
             return (error_tensor, error_msg)
 
-        config_bypass_proxy = self.config_manager.should_bypass_proxy()
-        bypass_proxy_flag = (
-            bool(bypass_proxy) if bypass_proxy is not None else config_bypass_proxy
-        )
+        # 绕过代理完全由节点开关控制，不再读取 config.ini
+        bypass_proxy_flag = bool(绕过代理)
         cost_factor = self.config_manager.load_cost_factor()
         balance_summary = None
         if not is_fix_mode:
@@ -341,6 +339,7 @@ class BananaImageNode:
         # - 默认模式：连接(20s) + 读取(90s)，更偏向兼容长耗时生成
         # - 高峰模式：连接(20s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
         connect_timeout = 20
+        peak_mode = bool(高峰模式)
         read_timeout = 60 if peak_mode else 90
         request_timeout = (connect_timeout, read_timeout)
         continue_on_error = True  # 总是容错
@@ -363,11 +362,25 @@ class BananaImageNode:
 
         for i in range(batch_size):
             current_seed = base_seed + i if seed != -1 else -1
-            tasks.append((i, current_seed, resolved_api_key, prompt, model_type, aspect_ratio,
-                          top_p, encoded_input_images, request_timeout, stagger_delay,
-                          decode_workers, bypass_proxy_flag,
-                          request_start_event, request_start_time_holder, request_start_lock,
-                          effective_base_url))
+            tasks.append((
+                i,
+                current_seed,
+                resolved_api_key,
+                prompt,
+                model_type,
+                aspect_ratio,
+                top_p,
+                encoded_input_images,
+                request_timeout,
+                stagger_delay,
+                decode_workers,
+                bypass_proxy_flag,
+                peak_mode,
+                request_start_event,
+                request_start_time_holder,
+                request_start_lock,
+                effective_base_url,
+            ))
 
         # 显示任务开始信息
         logger.header("🎨 Gemini 图像生成任务")

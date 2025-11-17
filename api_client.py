@@ -174,11 +174,10 @@ class GeminiApiClient:
         url = self._build_generate_content_url(api_base_url, model_type)
         session = self._get_session(bypass_proxy)
         verify_ssl = self.config_manager.should_verify_ssl()
-        connect_timeout, read_timeout = self._resolve_timeout(timeout)
+        connect_timeout, read_timeout_global = self._resolve_timeout(timeout)
         headers = self._build_headers(sanitized_key)
 
         payload = json.dumps(request_data, ensure_ascii=False)
-        attempt_delay = self._BASE_BACKOFF
         last_error: Optional[BaseException] = None
 
         effective_max_retries = (
@@ -187,17 +186,35 @@ class GeminiApiClient:
             else self._MAX_RETRIES
         )
 
+        # 采用“全局读取超时 + 每次连接 20s”语义：
+        # - connect_timeout：单次连接阶段的超时时间（例如 20s），每次尝试独立计算
+        # - read_timeout_global：从第一次尝试开始计时的全局读取超时（例如 90s 或 70s）
+        #   后续重试只使用剩余的读取时间，确保总耗时不会超过全局读取超时
+        global_start = time.time()
+
         for attempt in range(1, effective_max_retries + 1):
+            # 计算本次尝试可用的剩余读取时间
+            elapsed = time.time() - global_start
+            remaining_read = read_timeout_global - elapsed
+            if remaining_read <= 0:
+                # 全局读取超时已耗尽，不再发起新的请求
+                raise RuntimeError(
+                    f"请求 {model_type} 超时：总耗时 {elapsed:.1f}s 已超过全局读取超时 {read_timeout_global:.1f}s"
+                )
+
             start = time.time()
             try:
                 response = session.post(
                     url,
                     data=payload,
                     headers=headers,
-                    timeout=(connect_timeout, read_timeout),
+                    timeout=(connect_timeout, remaining_read),
                     verify=verify_ssl,
                 )
-                if response.status_code in self._RETRYABLE_STATUS and attempt < effective_max_retries:
+                if (
+                    response.status_code in self._RETRYABLE_STATUS
+                    and attempt < effective_max_retries
+                ):
                     raise requests.HTTPError(
                         f"HTTP {response.status_code}", response=response
                     )
@@ -207,14 +224,14 @@ class GeminiApiClient:
                 last_error = exc
                 duration = time.time() - start
                 self.logger.warning(
-                    f"请求 {model_type} 超时（{duration:.1f}s），尝试 {attempt}/{self._MAX_RETRIES}"
+                    f"请求 {model_type} 超时（{duration:.1f}s），尝试 {attempt}/{effective_max_retries}"
                 )
             except requests.HTTPError as exc:
                 last_error = exc
                 status = exc.response.status_code if exc.response else None
                 body = exc.response.text if exc.response is not None else str(exc)
                 truncated = body[:300]
-                if status in self._RETRYABLE_STATUS and attempt < self._MAX_RETRIES:
+                if status in self._RETRYABLE_STATUS and attempt < effective_max_retries:
                     self.logger.warning(
                         f"HTTP {status}，将重试：{truncated}"
                     )
