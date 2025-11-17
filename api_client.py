@@ -165,6 +165,7 @@ class GeminiApiClient:
         api_base_url: str,
         timeout: Optional[Any] = None,
         bypass_proxy: bool = False,
+        max_retries: Optional[int] = None,
     ) -> Dict[str, Any]:
         sanitized_key = self.config_manager.sanitize_api_key(api_key)
         if not sanitized_key:
@@ -180,7 +181,13 @@ class GeminiApiClient:
         attempt_delay = self._BASE_BACKOFF
         last_error: Optional[BaseException] = None
 
-        for attempt in range(1, self._MAX_RETRIES + 1):
+        effective_max_retries = (
+            max_retries
+            if isinstance(max_retries, int) and max_retries >= 1
+            else self._MAX_RETRIES
+        )
+
+        for attempt in range(1, effective_max_retries + 1):
             start = time.time()
             try:
                 response = session.post(
@@ -190,7 +197,7 @@ class GeminiApiClient:
                     timeout=(connect_timeout, read_timeout),
                     verify=verify_ssl,
                 )
-                if response.status_code in self._RETRYABLE_STATUS and attempt < self._MAX_RETRIES:
+                if response.status_code in self._RETRYABLE_STATUS and attempt < effective_max_retries:
                     raise requests.HTTPError(
                         f"HTTP {response.status_code}", response=response
                     )
@@ -219,11 +226,11 @@ class GeminiApiClient:
                 last_error = exc
                 raise RuntimeError(f"HTTP 请求失败：{exc}") from exc
 
-            if attempt < self._MAX_RETRIES:
+            if attempt < effective_max_retries:
                 time.sleep(attempt_delay)
                 attempt_delay *= 1.5
 
-        raise RuntimeError(f"连续 {self._MAX_RETRIES} 次请求失败：{last_error}")
+        raise RuntimeError(f"连续 {effective_max_retries} 次请求失败：{last_error}")
 
     # --- 响应解析 --------------------------------------------------------
     def extract_content(self, response_data: Dict[str, Any]) -> Tuple[List[str], str]:

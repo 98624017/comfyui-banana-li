@@ -21,6 +21,7 @@ if str(current_dir) not in sys.path:
 # 初始化节点映射字典
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
+__version__ = "0.0.1"
 
 # 需要跳过的文件列表
 SKIP_FILES = {
@@ -38,6 +39,7 @@ SKIP_FILES = {
 
 # 显示加载器标题
 logger.header("🍌 Banana Node Loader")
+logger.info(f"Banana Gemini version {__version__}")
 
 # 自动查找并加载所有Python文件中的节点
 for py_file in current_dir.glob("*.py"):
@@ -74,5 +76,5 @@ else:
     logger.warning("未找到任何有效的节点")
 
 # ComfyUI需要的变量
-__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
+__all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', '__version__']
 WEB_DIRECTORY = "./web"

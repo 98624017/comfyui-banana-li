@@ -124,7 +124,7 @@ class ConfigManager:
         except Exception as exc:  # pragma: no cover
             logger.warning(f"创建配置文件失败: {exc}")
 
-    def get_effective_api_base_url(self) -> str:
+    def _get_configured_base_url(self) -> str:
         test_base_url = self._load_test_base_url()
         if test_base_url:
             return test_base_url
@@ -147,6 +147,9 @@ class ConfigManager:
                 )
 
         return self._get_default_base_url()
+
+    def get_effective_api_base_url(self) -> str:
+        return self._get_configured_base_url()
 
     def sanitize_api_key(self, api_key: Optional[str]) -> Optional[str]:
         if not api_key:
@@ -266,5 +269,7 @@ class ConfigManager:
             except Exception as exc:
                 logger.warning(f"读取 config 中的 bypass_proxy 失败: {exc}")
         return False
+
+
 
 
