@@ -20,7 +20,7 @@ from logger import logger  # type: ignore
 class GeminiApiClient:
     """封装与 Gemini 兼容图像接口交互的 HTTP 客户端。"""
 
-    _DEFAULT_CONNECT_TIMEOUT = 10.0
+    _DEFAULT_CONNECT_TIMEOUT = 8.0
     _DEFAULT_READ_TIMEOUT = 90.0
     _MAX_RETRIES = 2
     _BASE_BACKOFF = 2.0
@@ -183,6 +183,8 @@ class GeminiApiClient:
         # 这里显式将 JSON 序列化结果编码为 UTF-8 bytes，避免依赖 http.client 的默认编码。
         payload = json.dumps(request_data, ensure_ascii=False).encode("utf-8")
         last_error: Optional[BaseException] = None
+        last_error_phase: Optional[str] = None  # connect/read
+        last_error_hint: Optional[str] = None
 
         effective_max_retries = (
             max_retries
@@ -190,8 +192,8 @@ class GeminiApiClient:
             else self._MAX_RETRIES
         )
 
-        # 采用“全局读取超时 + 每次连接 20s”语义：
-        # - connect_timeout：单次连接阶段的超时时间（例如 20s），每次尝试独立计算
+        # 采用“全局读取超时 + 每次连接 8s”语义：
+        # - connect_timeout：单次连接阶段的超时时间（例如 8s），每次尝试独立计算
         # - read_timeout_global：从第一次尝试开始计时的全局读取超时（例如 90s 或 70s）
         #   后续重试只使用剩余的读取时间，确保总耗时不会超过全局读取超时
         global_start = time.time()
@@ -204,7 +206,7 @@ class GeminiApiClient:
             if remaining_read <= 0:
                 # 全局读取超时已耗尽，不再发起新的请求
                 raise RuntimeError(
-                    f"请求 {model_type} 超时：总耗时 {elapsed:.1f}s 已超过全局读取超时 {read_timeout_global:.1f}s"
+                    f"模型 {model_type} 响应超时：总耗时 {elapsed:.1f}s 已超过读取上限 {read_timeout_global:.1f}s"
                 )
 
             start = time.time()
@@ -228,9 +230,25 @@ class GeminiApiClient:
             except (requests.Timeout, requests.ConnectionError) as exc:
                 last_error = exc
                 duration = time.time() - start
-                self.logger.warning(
-                    f"请求 {model_type} 超时（{duration:.1f}s），尝试 {attempt}/{effective_max_retries}"
-                )
+                if isinstance(exc, requests.ConnectTimeout) or isinstance(
+                    exc, requests.ConnectionError
+                ):
+                    last_error_phase = "connect"
+                    hint = (
+                        "连接阶段耗时过长或无法建立，请检查代理、DNS 或 Base URL 域名是否可达"
+                    )
+                    self.logger.warning(
+                        f"连接阶段失败：{model_type}（耗时 {duration:.1f}s，尝试 {attempt}/{effective_max_retries}）"
+                    )
+                else:
+                    last_error_phase = "read"
+                    hint = (
+                        f"服务器在 {duration:.1f}s 内未返回数据，剩余读取时间 {max(0.0, remaining_read):.1f}s"
+                    )
+                    self.logger.warning(
+                        f"服务器响应缓慢：{model_type}（耗时 {duration:.1f}s，尝试 {attempt}/{effective_max_retries}）"
+                    )
+                last_error_hint = hint
             except requests.HTTPError as exc:
                 last_error = exc
                 status = exc.response.status_code if exc.response else None
@@ -258,6 +276,16 @@ class GeminiApiClient:
 
         # 对最终用户仅暴露抽象错误类型，避免泄露真实源站地址或 URL 细节
         error_label = type(last_error).__name__ if last_error is not None else "未知错误"
+        if last_error_phase == "connect":
+            hint = last_error_hint or "请检查网络、代理或 API Base URL 配置"
+            raise RuntimeError(
+                f"连接 {model_type} 失败（{error_label}）：{hint}"
+            )
+        if last_error_phase == "read":
+            hint = last_error_hint or "模型响应过慢，超过读取时间上限"
+            raise RuntimeError(
+                f"模型 {model_type} 响应超时（{error_label}）：{hint}"
+            )
         raise RuntimeError(
             f"连续 {effective_max_retries} 次请求失败（错误类型：{error_label}），"
             f"请检查网络环境或服务状态"

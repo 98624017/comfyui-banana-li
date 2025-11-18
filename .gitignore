@@ -74,3 +74,5 @@ test/show_full_json.py
 test/show_request_body.py
 test/verify_fix.py
 test/verify_fixed_params.py
+.test/compare_async_methods.py
+.test/analyze_user_scenario.py
