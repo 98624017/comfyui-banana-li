@@ -177,7 +177,11 @@ class GeminiApiClient:
         connect_timeout, read_timeout_global = self._resolve_timeout(timeout)
         headers = self._build_headers(sanitized_key)
 
-        payload = json.dumps(request_data, ensure_ascii=False)
+        # 注意：requests 在 data 为 str 时会将其直接传递给 http.client，
+        # 后者默认使用 latin-1 编码字符串，这会在请求体包含中文等非 latin-1 字符时
+        # 触发 "Body (...) is not valid Latin-1" 错误。
+        # 这里显式将 JSON 序列化结果编码为 UTF-8 bytes，避免依赖 http.client 的默认编码。
+        payload = json.dumps(request_data, ensure_ascii=False).encode("utf-8")
         last_error: Optional[BaseException] = None
 
         effective_max_retries = (
