@@ -20,7 +20,7 @@ from logger import logger  # type: ignore
 class GeminiApiClient:
     """封装与 Gemini 兼容图像接口交互的 HTTP 客户端。"""
 
-    _DEFAULT_CONNECT_TIMEOUT = 8.0
+    _DEFAULT_CONNECT_TIMEOUT = 10.0
     _DEFAULT_READ_TIMEOUT = 90.0
     _MAX_RETRIES = 2
     _BASE_BACKOFF = 2.0
@@ -165,6 +165,7 @@ class GeminiApiClient:
         api_base_url: str,
         timeout: Optional[Any] = None,
         bypass_proxy: bool = False,
+        verify_ssl: bool = True,
         max_retries: Optional[int] = None,
     ) -> Dict[str, Any]:
         sanitized_key = self.config_manager.sanitize_api_key(api_key)
@@ -173,7 +174,6 @@ class GeminiApiClient:
 
         url = self._build_generate_content_url(api_base_url, model_type)
         session = self._get_session(bypass_proxy)
-        verify_ssl = self.config_manager.should_verify_ssl()
         connect_timeout, read_timeout_global = self._resolve_timeout(timeout)
         headers = self._build_headers(sanitized_key)
 
@@ -192,8 +192,8 @@ class GeminiApiClient:
             else self._MAX_RETRIES
         )
 
-        # 采用“全局读取超时 + 每次连接 8s”语义：
-        # - connect_timeout：单次连接阶段的超时时间（例如 8s），每次尝试独立计算
+        # 采用“全局读取超时 + 每次连接 10s”语义：
+        # - connect_timeout：单次连接阶段的超时时间（例如 10s），每次尝试独立计算
         # - read_timeout_global：从第一次尝试开始计时的全局读取超时（例如 90s 或 70s）
         #   后续重试只使用剩余的读取时间，确保总耗时不会超过全局读取超时
         global_start = time.time()
@@ -336,13 +336,13 @@ class GeminiApiClient:
         api_key: str,
         timeout: int = 15,
         bypass_proxy: bool = False,
+        verify_ssl: bool = True,
     ) -> Dict[str, Any]:
         sanitized_key = self.config_manager.sanitize_api_key(api_key)
         if not sanitized_key:
             raise ValueError("请提供有效的 API Key 后再查询余额")
 
         session = self._get_session(bypass_proxy)
-        verify_ssl = self.config_manager.should_verify_ssl()
         timeout_tuple = self._resolve_timeout(timeout)
         # 内部错误详情仅写入日志，不直接暴露真实源站给前端用户
         internal_errors: List[str] = []

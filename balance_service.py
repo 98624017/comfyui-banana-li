@@ -69,6 +69,7 @@ class BalanceService:
         api_key: str,
         timeout: int = 15,
         bypass_proxy: Optional[bool] = None,
+        verify_ssl: Optional[bool] = None,
     ) -> None:
         sanitized = self.config_manager.sanitize_api_key(api_key)
         if not sanitized:
@@ -76,11 +77,13 @@ class BalanceService:
         # 查询余额时的代理行为只由调用方显式控制，
         # 不再从 config.ini 中读取 bypass_proxy 配置，避免与节点 UI 状态不一致。
         bypass = bool(bypass_proxy) if bypass_proxy is not None else False
+        verify = True if verify_ssl is None else bool(verify_ssl)
         payload = self.api_client.fetch_token_usage(
             api_base_url,
             sanitized,
             timeout=timeout,
             bypass_proxy=bypass,
+            verify_ssl=verify,
         )
         self._store_snapshot(api_base_url, sanitized, payload)
 
@@ -194,6 +197,12 @@ class BalanceService:
                 if bypass_query_value is not None
                 else None
             )
+            disable_ssl_value = request.rel_url.query.get("disable_ssl_verify")
+            disable_ssl_flag = (
+                self._parse_bool(disable_ssl_value)
+                if disable_ssl_value is not None
+                else None
+            )
             api_key = (
                 self.config_manager.sanitize_api_key(api_key_from_request)
                 or self.config_manager.sanitize_api_key(self.config_manager.load_api_key())
@@ -232,6 +241,11 @@ class BalanceService:
                         base_url,
                         api_key,
                         bypass_proxy=bypass_from_query,
+                        verify_ssl=(
+                            None
+                            if disable_ssl_flag is None
+                            else (not disable_ssl_flag)
+                        ),
                     )
                 )
                 snapshot = self._get_snapshot(base_url, api_key)

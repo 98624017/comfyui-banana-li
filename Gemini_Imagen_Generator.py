@@ -128,9 +128,13 @@ class BananaImageNode:
                     "default": False,
                     "tooltip": "梯子速度不佳、不可靠时开启"
                 }),
+                "禁用SSL验证": ("BOOLEAN", {
+                    "default": False,
+                    "tooltip": "禁用提高成功率，但流量被第三人劫持状况下可能泄露密钥"
+                }),
                 "高峰模式": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "高峰模式：启用后单次请求超时为 8+60 秒，且不重试，以避免长时间等待"
+                    "tooltip": "高峰模式：启用后单次请求超时为 10+60 秒，且不重试，以避免长时间等待"
                 }),
             }
         }
@@ -171,6 +175,7 @@ class BananaImageNode:
             request_start_time_holder,
             request_start_lock,
             effective_base_url,
+            verify_ssl,
         ) = args
 
         self._ensure_not_interrupted()
@@ -204,6 +209,7 @@ class BananaImageNode:
                 effective_base_url,
                 timeout,
                 bypass_proxy=bypass_proxy,
+                verify_ssl=verify_ssl,
                 max_retries=1 if peak_mode else None,
             )
             self._ensure_not_interrupted()
@@ -275,7 +281,7 @@ class BananaImageNode:
     def generate_images(self, prompt, api_key="", model_type="gemini-2.5-flash-image",
                        batch_size=1, aspect_ratio="Auto", seed=-1, top_p=0.95, max_workers=None,
                        image_1=None, image_2=None, image_3=None,
-                       image_4=None, image_5=None, 绕过代理=None, 高峰模式=False):
+                       image_4=None, image_5=None, 绕过代理=None, 高峰模式=False, 禁用SSL验证=False):
 
         # 解析 API Key：优先使用节点输入，留空时回退 config
         # 其中以 "fix" 前缀开头的 Key 视为前台临时测试模式，仅在节点侧临时切换 Base URL，
@@ -317,6 +323,10 @@ class BananaImageNode:
 
         # 绕过代理完全由节点开关控制，不再读取 config.ini
         bypass_proxy_flag = bool(绕过代理)
+        disable_ssl_flag = bool(禁用SSL验证)
+        verify_ssl_flag = not disable_ssl_flag
+        if disable_ssl_flag:
+            logger.warning("已禁用 SSL 证书验证，请确保你信任当前网络环境，以免密钥被中间人窃取")
         cost_factor = self.config_manager.load_cost_factor()
         balance_summary = None
         if not is_fix_mode:
@@ -336,9 +346,9 @@ class BananaImageNode:
         # 为网络请求增加轻微交错延迟,减少瞬时请求尖峰
         stagger_delay = 0.2      # 每个批次相对前一个延迟 0.2 秒
         # 拆分网络超时：
-        # - 默认模式：连接(8s) + 读取(90s)，更偏向兼容长耗时生成
-        # - 高峰模式：连接(8s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
-        connect_timeout = 8
+        # - 默认模式：连接(10s) + 读取(90s)，更偏向兼容长耗时生成
+        # - 高峰模式：连接(10s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
+        connect_timeout = 10
         peak_mode = bool(高峰模式)
         read_timeout = 60 if peak_mode else 90
         request_timeout = (connect_timeout, read_timeout)
@@ -380,6 +390,7 @@ class BananaImageNode:
                 request_start_time_holder,
                 request_start_lock,
                 effective_base_url,
+                verify_ssl_flag,
             ))
 
         # 显示任务开始信息

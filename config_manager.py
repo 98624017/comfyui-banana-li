@@ -114,7 +114,6 @@ class ConfigManager:
             "api_key": self._DEFAULT_API_KEY,
             "balance_cost_factor": "0.6",
             "max_workers": str(default_workers),
-            "verify_ssl": "true",
         }
         try:
             with open(self._config_path, "w", encoding="utf-8") as handle:
@@ -237,22 +236,6 @@ class ConfigManager:
             except Exception as exc:
                 logger.warning(f"读取 config 中的 network_workers_cap 失败: {exc}")
         return default_cap
-
-    def should_verify_ssl(self) -> bool:
-        parser = configparser.ConfigParser()
-        if os.path.exists(self._config_path):
-            try:
-                parser.read(self._config_path, encoding="utf-8")
-                if parser.has_section(self._CONFIG_SECTION):
-                    value = parser.get(
-                        self._CONFIG_SECTION,
-                        "verify_ssl",
-                        fallback="true"
-                    )
-                    return self._parse_bool(str(value).strip())
-            except Exception as exc:
-                logger.warning(f"读取 config 中的 verify_ssl 失败: {exc}")
-        return True
 
     def should_bypass_proxy(self) -> bool:
         parser = configparser.ConfigParser()

@@ -280,6 +280,14 @@ function getBypassProxyFlag(node) {
   return typeof widget.value === "boolean" ? widget.value : null;
 }
 
+function getDisableSslFlag(node) {
+  const widget = node.widgets?.find((w) => w.name === "禁用SSL验证");
+  if (!widget) {
+    return null;
+  }
+  return typeof widget.value === "boolean" ? widget.value : null;
+}
+
 function formatSummary(data) {
   if (!data) {
     return "未返回余额信息";
@@ -302,6 +310,10 @@ async function requestBalance(node, refresh) {
   const bypassProxy = getBypassProxyFlag(node);
   if (bypassProxy !== null) {
     url += `&bypass_proxy=${bypassProxy ? 1 : 0}`;
+  }
+  const disableSsl = getDisableSslFlag(node);
+  if (disableSsl !== null) {
+    url += `&disable_ssl_verify=${disableSsl ? 1 : 0}`;
   }
   const response = await api.fetchApi(url, { method: "GET" });
   const payload = await response.json().catch(() => ({}));

@@ -366,6 +366,12 @@ keepalive_timeout = 30</code></pre>
                 <td>采样参数,控制生成多样性(0.0-1.0)</td>
             </tr>
             <tr>
+                <td><strong>禁用SSL验证</strong></td>
+                <td>BOOLEAN</td>
+                <td>False</td>
+                <td>禁用提高成功率,但流量被第三人劫持状况下可能泄露密钥</td>
+            </tr>
+            <tr>
                 <td><strong>image_1~5</strong></td>
                 <td>IMAGE</td>
                 <td>-</td>
@@ -373,6 +379,7 @@ keepalive_timeout = 30</code></pre>
             </tr>
         </tbody>
     </table>
+    <p><strong>提示:</strong> 仅在可信的代理/内网环境中才建议打开“禁用SSL验证”,否则存在被中间人窃取 API Key 的风险。</p>
 
     <h2>📋 输出</h2>
     <p>节点返回一个包含生成图像的张量(TENSOR),可以连接到:</p>
