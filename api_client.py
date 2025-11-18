@@ -234,7 +234,8 @@ class GeminiApiClient:
             except requests.HTTPError as exc:
                 last_error = exc
                 status = exc.response.status_code if exc.response else None
-                body = exc.response.text if exc.response is not None else str(exc)
+                # 避免泄露源站域名：仅使用服务器响应内容，不使用异常字符串
+                body = exc.response.text if exc.response is not None else "无响应内容"
                 truncated = body[:300]
                 if status in self._RETRYABLE_STATUS and attempt < effective_max_retries:
                     self.logger.warning(
@@ -243,16 +244,24 @@ class GeminiApiClient:
                 else:
                     raise RuntimeError(
                         f"远端返回异常（HTTP {status}）：{truncated}"
-                    ) from exc
+                    )
             except requests.RequestException as exc:
                 last_error = exc
-                raise RuntimeError(f"HTTP 请求失败：{exc}") from exc
+                error_type = type(exc).__name__
+                raise RuntimeError(
+                    f"HTTP 请求失败（{error_type}），请检查网络连接、代理或证书配置"
+                )
 
             if attempt < effective_max_retries:
                 time.sleep(attempt_delay)
                 attempt_delay *= 1.5
 
-        raise RuntimeError(f"连续 {effective_max_retries} 次请求失败：{last_error}")
+        # 对最终用户仅暴露抽象错误类型，避免泄露真实源站地址或 URL 细节
+        error_label = type(last_error).__name__ if last_error is not None else "未知错误"
+        raise RuntimeError(
+            f"连续 {effective_max_retries} 次请求失败（错误类型：{error_label}），"
+            f"请检查网络环境或服务状态"
+        )
 
     # --- 响应解析 --------------------------------------------------------
     def extract_content(self, response_data: Dict[str, Any]) -> Tuple[List[str], str]:
@@ -319,7 +328,7 @@ class GeminiApiClient:
                     verify=verify_ssl,
                 )
                 if response.status_code == 404:
-                    internal_errors.append(f"{url} -> 404")
+                    internal_errors.append("404 未找到余额查询端点")
                     continue
                 response.raise_for_status()
                 payload = response.json()
@@ -327,17 +336,18 @@ class GeminiApiClient:
                     raise ValueError("余额接口返回格式错误")
                 return payload
             except ValueError as exc:
-                internal_errors.append(f"{url}: {exc}")
+                internal_errors.append(f"数据格式错误: {exc}")
             except requests.HTTPError as exc:
                 status = exc.response.status_code if exc.response else None
-                internal_errors.append(f"{url}: HTTP {status} - {exc}")
+                internal_errors.append(f"HTTP {status} 错误")
             except requests.RequestException as exc:
-                internal_errors.append(f"{url}: 网络错误 - {exc}")
+                error_type = type(exc).__name__
+                internal_errors.append(f"网络错误 ({error_type})")
 
         if internal_errors:
-            # 在日志中保留详细信息，便于开发者排查
+            # 记录错误摘要，不包含敏感的源站地址信息
             self.logger.warning(
-                "余额查询失败，尝试的地址与错误详情: " + "; ".join(internal_errors)
+                "余额查询失败，错误摘要: " + "; ".join(internal_errors)
             )
 
         # 对前端只返回抽象错误，避免暴露真实源站地址
