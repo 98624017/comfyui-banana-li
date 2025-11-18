@@ -21,7 +21,7 @@ if str(current_dir) not in sys.path:
 # 初始化节点映射字典
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
-__version__ = "0.0.1"
+__version__ = "V0.02"
 
 # 需要跳过的文件列表
 SKIP_FILES = {

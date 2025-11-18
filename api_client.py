@@ -195,6 +195,7 @@ class GeminiApiClient:
         # - read_timeout_global：从第一次尝试开始计时的全局读取超时（例如 90s 或 70s）
         #   后续重试只使用剩余的读取时间，确保总耗时不会超过全局读取超时
         global_start = time.time()
+        attempt_delay = self._BASE_BACKOFF  # 初始重试间隔（秒）
 
         for attempt in range(1, effective_max_retries + 1):
             # 计算本次尝试可用的剩余读取时间

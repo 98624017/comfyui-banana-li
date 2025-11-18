@@ -272,6 +272,14 @@ function getApiKey(node) {
   return "";
 }
 
+function getBypassProxyFlag(node) {
+  const widget = node.widgets?.find((w) => w.name === "绕过代理");
+  if (!widget) {
+    return null;
+  }
+  return typeof widget.value === "boolean" ? widget.value : null;
+}
+
 function formatSummary(data) {
   if (!data) {
     return "未返回余额信息";
@@ -290,6 +298,10 @@ async function requestBalance(node, refresh) {
   let url = `/banana/token_usage?refresh=${refresh ? 1 : 0}`;
   if (apiKey) {
     url += `&api_key=${encodeURIComponent(apiKey)}`;
+  }
+  const bypassProxy = getBypassProxyFlag(node);
+  if (bypassProxy !== null) {
+    url += `&bypass_proxy=${bypassProxy ? 1 : 0}`;
   }
   const response = await api.fetchApi(url, { method: "GET" });
   const payload = await response.json().catch(() => ({}));

@@ -125,8 +125,8 @@ class BananaImageNode:
                     "tooltip": "参考图像 5，可为空；用于图生图或多图融合"
                 }),
                 "绕过代理": ("BOOLEAN", {
-                    "default": True,
-                    "tooltip": "是否绕过系统/环境代理直接访问服务端；默认开启，适合直连国内中转服务"
+                    "default": False,
+                    "tooltip": "梯子速度不佳、不可靠时开启"
                 }),
                 "高峰模式": ("BOOLEAN", {
                     "default": False,

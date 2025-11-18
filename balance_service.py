@@ -73,11 +73,9 @@ class BalanceService:
         sanitized = self.config_manager.sanitize_api_key(api_key)
         if not sanitized:
             raise ValueError("未配置有效的 API Key")
-        bypass = (
-            self.config_manager.should_bypass_proxy()
-            if bypass_proxy is None
-            else bool(bypass_proxy)
-        )
+        # 查询余额时的代理行为只由调用方显式控制，
+        # 不再从 config.ini 中读取 bypass_proxy 配置，避免与节点 UI 状态不一致。
+        bypass = bool(bypass_proxy) if bypass_proxy is not None else False
         payload = self.api_client.fetch_token_usage(
             api_base_url,
             sanitized,
