@@ -5,10 +5,18 @@ import os
 import sys
 import threading
 import time
+import warnings
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
+try:
+    from requests.packages import urllib3 as requests_urllib3  # type: ignore
+except Exception:  # pragma: no cover - 兼容精简 Python 发行版
+    requests_urllib3 = None
 
 MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 if MODULE_DIR not in sys.path:
@@ -20,7 +28,7 @@ from logger import logger  # type: ignore
 class GeminiApiClient:
     """封装与 Gemini 兼容图像接口交互的 HTTP 客户端。"""
 
-    _DEFAULT_CONNECT_TIMEOUT = 10.0
+    _DEFAULT_CONNECT_TIMEOUT = 15.0
     _DEFAULT_READ_TIMEOUT = 90.0
     _MAX_RETRIES = 2
     _BASE_BACKOFF = 2.0
@@ -37,6 +45,7 @@ class GeminiApiClient:
         "16:9": "16:9",
         "21:9": "21:9",
     }
+    _INSECURE_WARNING_SUPPRESSED = False
 
     def __init__(self, config_manager, logger_instance=logger) -> None:
         self.config_manager = config_manager
@@ -112,6 +121,21 @@ class GeminiApiClient:
             setattr(self._thread_local, attr_name, session)
         return session
 
+    @classmethod
+    def _suppress_insecure_warning(cls, verify_ssl: bool) -> None:
+        if verify_ssl or cls._INSECURE_WARNING_SUPPRESSED:
+            return
+        # urllib3 的 InsecureRequestWarning 会在关闭 SSL 验证时提示真实域名。
+        # 当用户显式关闭验证时,统一在客户端级别关闭该告警,避免源站泄露。
+        warnings.filterwarnings("ignore", category=InsecureRequestWarning)
+        urllib3.disable_warnings(InsecureRequestWarning)
+        if requests_urllib3 is not None:
+            try:
+                requests_urllib3.disable_warnings(InsecureRequestWarning)
+            except Exception:
+                pass
+        cls._INSECURE_WARNING_SUPPRESSED = True
+
     def _build_headers(self, api_key: str) -> Dict[str, str]:
         return {
             "Accept": "application/json",
@@ -174,6 +198,7 @@ class GeminiApiClient:
 
         url = self._build_generate_content_url(api_base_url, model_type)
         session = self._get_session(bypass_proxy)
+        self._suppress_insecure_warning(verify_ssl)
         connect_timeout, read_timeout_global = self._resolve_timeout(timeout)
         headers = self._build_headers(sanitized_key)
 
@@ -192,8 +217,8 @@ class GeminiApiClient:
             else self._MAX_RETRIES
         )
 
-        # 采用“全局读取超时 + 每次连接 10s”语义：
-        # - connect_timeout：单次连接阶段的超时时间（例如 10s），每次尝试独立计算
+        # 采用“全局读取超时 + 每次连接 15s”语义：
+        # - connect_timeout：单次连接阶段的超时时间（例如 15s），每次尝试独立计算
         # - read_timeout_global：从第一次尝试开始计时的全局读取超时（例如 90s 或 70s）
         #   后续重试只使用剩余的读取时间，确保总耗时不会超过全局读取超时
         global_start = time.time()
@@ -343,6 +368,7 @@ class GeminiApiClient:
             raise ValueError("请提供有效的 API Key 后再查询余额")
 
         session = self._get_session(bypass_proxy)
+        self._suppress_insecure_warning(verify_ssl)
         timeout_tuple = self._resolve_timeout(timeout)
         # 内部错误详情仅写入日志，不直接暴露真实源站给前端用户
         internal_errors: List[str] = []

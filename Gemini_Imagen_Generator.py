@@ -134,7 +134,7 @@ class BananaImageNode:
                 }),
                 "高峰模式": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "高峰模式：启用后单次请求超时为 10+60 秒，且不重试，以避免长时间等待"
+                    "tooltip": "高峰模式：启用后单次请求超时为 15+60 秒，且不重试，以避免长时间等待"
                 }),
             }
         }
@@ -346,9 +346,9 @@ class BananaImageNode:
         # 为网络请求增加轻微交错延迟,减少瞬时请求尖峰
         stagger_delay = 0.2      # 每个批次相对前一个延迟 0.2 秒
         # 拆分网络超时：
-        # - 默认模式：连接(10s) + 读取(90s)，更偏向兼容长耗时生成
-        # - 高峰模式：连接(10s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
-        connect_timeout = 10
+        # - 默认模式：连接(15s) + 读取(90s)，更偏向兼容长耗时生成
+        # - 高峰模式：连接(15s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
+        connect_timeout = 15
         peak_mode = bool(高峰模式)
         read_timeout = 60 if peak_mode else 90
         request_timeout = (connect_timeout, read_timeout)
