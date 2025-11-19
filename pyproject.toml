@@ -1,0 +1,18 @@
+[project]
+name = "comfyui-banana-gemini"
+description = "为 ComfyUI 引入 Google NanoBanana Gemini 文生图/图生图能力的自定义节点,提供批量生成、并发调度与余额监控等高级特性。"
+version = "V0.02"
+license = { file = "LICENSE" }
+dependencies = [
+    "requests>=2.20.0",
+]
+
+[project.urls]
+Repository = "https://github.com/98624017/comfyui-banana-gemini"
+"Bug Tracker" = "https://github.com/98624017/comfyui-banana-gemini/issues"
+
+[tool.comfy]
+PublisherId = "98624017"
+DisplayName = "Banana Gemini Image Generator"
+Icon = "web/extensions/xinbao.png"
+includes = []
