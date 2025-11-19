@@ -14,5 +14,5 @@ Repository = "https://github.com/98624017/comfyui-banana-gemini"
 [tool.comfy]
 PublisherId = "xinbao"
 DisplayName = "Banana Gemini Image Generator"
-Icon = "web/extensions/xinbao.png"
+Icon = "https://youke1.picui.cn/s1/2025/11/12/69140968ed33b.jpg"
 includes = []
