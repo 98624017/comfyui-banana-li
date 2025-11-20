@@ -6,7 +6,7 @@
 
 > 为 ComfyUI 提供 Nano Banana 图像生成能力的自定义节点
 
-[![GitHub](https://img.shields.io/badge/GitHub-comfyui--banana--gemini-blue)](https://github.com/98624017/comfyui-banana-gemini)
+[![GitHub](https://img.shields.io/badge/GitHub-comfyui--banana--li-blue)](https://github.com/98624017/comfyui-banana-li)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
 [![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom_Node-orange)](https://github.com/comfyanonymous/ComfyUI)
 [![Bilibili](https://img.shields.io/badge/Bilibili-@李心宝爱玩Ai-ff69b4)](https://space.bilibili.com/470042957)
@@ -40,7 +40,7 @@ Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana �
 
 ## 📮 联系方式
 
-- **GitHub Issues**: [提交问题和建议](https://github.com/98624017/comfyui-banana-gemini/issues)
+- **GitHub Issues**: [提交问题和建议](https://github.com/98624017/comfyui-banana-li/issues)
 - **Bilibili**: [@心宝](https://space.bilibili.com/470042957) - 视频教程和更新动态
 - **获取公开资料及API 购买**: <img src="https://img.shields.io/badge/WeChat-07C160?logo=wechat&logoColor=white" align="center" style="vertical-align: middle;"> Li_18727107073
 
@@ -67,8 +67,8 @@ Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana �
 
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/98624017/comfyui-banana-gemini.git comfyui-banana-gemini
-cd comfyui-banana-gemini
+git clone https://github.com/98624017/comfyui-banana-li.git comfyui-banana-li
+cd comfyui-banana-li
 ```
 
 ## ⚙️ 配置
@@ -198,7 +198,7 @@ network_workers_cap = 4   # 网络并发上限
 ### 项目结构
 
 ```
-comfyui-banana-gemini/
+comfyui-banana-li/
 ├── __init__.py                    # 节点注册入口
 ├── Gemini_Imagen_Generator.py    # 主节点实现(核心业务逻辑)
 ├── logger.py                      # 零依赖线程安全彩色日志系统
