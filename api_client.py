@@ -47,9 +47,10 @@ class GeminiApiClient:
     }
     _INSECURE_WARNING_SUPPRESSED = False
 
-    def __init__(self, config_manager, logger_instance=logger) -> None:
+    def __init__(self, config_manager, logger_instance=logger, interrupt_checker=None) -> None:
         self.config_manager = config_manager
         self.logger = logger_instance
+        self.interrupt_checker = interrupt_checker
         self._thread_local = threading.local()
 
     # --- request 构造逻辑 -------------------------------------------------
@@ -142,6 +143,77 @@ class GeminiApiClient:
                 session.proxies = {}
             setattr(self._thread_local, attr_name, session)
         return session
+
+    def _ensure_not_interrupted(self) -> None:
+        if self.interrupt_checker is not None:
+            self.interrupt_checker()
+
+    def _interruptible_post(
+        self,
+        session: requests.Session,
+        url: str,
+        payload: bytes,
+        headers: Dict[str, str],
+        timeout: Tuple[float, float],
+        verify: bool,
+        bypass_proxy: bool,
+    ) -> requests.Response:
+        """
+        让网络请求在长耗时阶段也能响应 ComfyUI 的中断。
+        使用后台线程发起请求，主线程轮询中断标志，必要时关闭 session 终止阻塞。
+        """
+        if self.interrupt_checker is None:
+            return session.post(
+                url,
+                data=payload,
+                headers=headers,
+                timeout=timeout,
+                verify=verify,
+            )
+
+        done_event = threading.Event()
+        resp_holder: Dict[str, Any] = {}
+        exc_holder: Dict[str, BaseException] = {}
+
+        def _do_request() -> None:
+            try:
+                resp_holder["resp"] = session.post(
+                    url,
+                    data=payload,
+                    headers=headers,
+                    timeout=timeout,
+                    verify=verify,
+                )
+            except BaseException as exc:  # pragma: no cover - 直接回传给主线程
+                exc_holder["exc"] = exc
+            finally:
+                done_event.set()
+
+        thread = threading.Thread(target=_do_request, daemon=True)
+        thread.start()
+
+        poll_interval = 0.25
+        attr_name = "session_no_proxy" if bypass_proxy else "session"
+        try:
+            while not done_event.wait(timeout=poll_interval):
+                self._ensure_not_interrupted()
+            self._ensure_not_interrupted()
+        except BaseException:
+            # 强制关闭当前 session，尽快打断正在阻塞的 request
+            try:
+                session.close()
+            finally:
+                setattr(self._thread_local, attr_name, None)
+            raise
+
+        if "exc" in exc_holder:
+            raise exc_holder["exc"]
+
+        resp = resp_holder.get("resp")
+        if resp is None:
+            # 极端情况下 session.post 未返回但线程结束，视为连接失败
+            raise RuntimeError("请求被中断或未获得响应")
+        return resp
 
     @classmethod
     def _suppress_insecure_warning(cls, verify_ssl: bool) -> None:
@@ -247,6 +319,7 @@ class GeminiApiClient:
         attempt_delay = self._BASE_BACKOFF  # 初始重试间隔（秒）
 
         for attempt in range(1, effective_max_retries + 1):
+            self._ensure_not_interrupted()
             # 计算本次尝试可用的剩余读取时间
             elapsed = time.time() - global_start
             remaining_read = read_timeout_global - elapsed
@@ -258,12 +331,14 @@ class GeminiApiClient:
 
             start = time.time()
             try:
-                response = session.post(
+                response = self._interruptible_post(
+                    session,
                     url,
-                    data=payload,
-                    headers=headers,
-                    timeout=(connect_timeout, remaining_read),
-                    verify=verify_ssl,
+                    payload,
+                    headers,
+                    (connect_timeout, remaining_read),
+                    verify_ssl,
+                    bypass_proxy,
                 )
                 if (
                     response.status_code in self._RETRYABLE_STATUS

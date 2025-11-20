@@ -37,7 +37,11 @@ from task_runner import BatchGenerationRunner
 
 
 CONFIG_MANAGER = ConfigManager(MODULE_DIR)
-API_CLIENT = GeminiApiClient(CONFIG_MANAGER, logger)
+API_CLIENT = GeminiApiClient(
+    CONFIG_MANAGER,
+    logger,
+    interrupt_checker=comfy.model_management.throw_exception_if_processing_interrupted,
+)
 BALANCE_SERVICE = BalanceService(API_CLIENT, CONFIG_MANAGER, logger)
 
 class BananaImageNode:
