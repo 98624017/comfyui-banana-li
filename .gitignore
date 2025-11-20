@@ -76,3 +76,4 @@ test/verify_fix.py
 test/verify_fixed_params.py
 .test/compare_async_methods.py
 .test/analyze_user_scenario.py
+bilibili_kol_leaderboard.html

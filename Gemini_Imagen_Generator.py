@@ -79,9 +79,12 @@ class BananaImageNode:
                     "multiline": False,
                     "tooltip": "调用服务的 API Key；留空则优先使用 config.ini 中的配置"
                 }),
-                "model_type": ("STRING", {
+                "model_type": ([
+                    "gemini-2.5-flash-image",
+                    "gemini-3-pro-image-preview",
+                ], {
                     "default": "gemini-2.5-flash-image",
-                    "tooltip": "模型名称或完整模型路径，例如 gemini-2.5-flash-image"
+                    "tooltip": "选择要使用的模型"
                 }),
                 "batch_size": ("INT", {
                     "default": 1,
@@ -109,6 +112,10 @@ class BananaImageNode:
                     "step": 0.01,
                     "tooltip": "采样参数 Top-P，数值越低越保守，越高多样性越强"
                 }),
+                "image_size": (["1K", "2K", "4K"], {
+                    "default": "2K",
+                    "tooltip": "仅 gemini-3-pro-image 系列生效的分辨率选项"
+                }),
                 "image_1": ("IMAGE", {
                     "tooltip": "参考图像 1，可为空；用于图生图或多图融合"
                 }),
@@ -134,7 +141,7 @@ class BananaImageNode:
                 }),
                 "高峰模式": ("BOOLEAN", {
                     "default": False,
-                    "tooltip": "高峰模式：启用后单次请求超时为 15+60 秒，且不重试，以避免长时间等待"
+                    "tooltip": "高峰模式：启用后连接 15s + 读取 60s，且不重试；谨慎开启，适用于高延迟/拥塞场景下想要快速失败"
                 }),
             }
         }
@@ -164,6 +171,7 @@ class BananaImageNode:
             prompt,
             model_type,
             aspect_ratio,
+            image_size,
             top_p,
             input_images_b64,
             timeout,
@@ -190,11 +198,13 @@ class BananaImageNode:
         try:
             self._ensure_not_interrupted()
             request_data = API_CLIENT.create_request_data(
-                prompt,
-                current_seed,
-                aspect_ratio,
-                top_p,
-                input_images_b64
+                prompt=prompt,
+                seed=current_seed,
+                aspect_ratio=aspect_ratio,
+                top_p=top_p,
+                input_images_b64=input_images_b64,
+                model_type=model_type,
+                image_size=image_size,
             )
             self._ensure_not_interrupted()
             if not request_start_event.is_set():
@@ -279,7 +289,7 @@ class BananaImageNode:
             return self._build_failure_result(i, current_seed, error_msg)
 
     def generate_images(self, prompt, api_key="", model_type="gemini-2.5-flash-image",
-                       batch_size=1, aspect_ratio="Auto", seed=-1, top_p=0.95, max_workers=None,
+                       batch_size=1, aspect_ratio="Auto", image_size="2K", seed=-1, top_p=0.95, max_workers=None,
                        image_1=None, image_2=None, image_3=None,
                        image_4=None, image_5=None, 绕过代理=None, 高峰模式=False, 禁用SSL验证=False):
 
@@ -346,11 +356,11 @@ class BananaImageNode:
         # 为网络请求增加轻微交错延迟,减少瞬时请求尖峰
         stagger_delay = 0.2      # 每个批次相对前一个延迟 0.2 秒
         # 拆分网络超时：
-        # - 默认模式：连接(15s) + 读取(90s)，更偏向兼容长耗时生成
+        # - 默认模式：连接(15s) + 读取(120s)，更偏向兼容长耗时生成
         # - 高峰模式：连接(15s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
         connect_timeout = 15
         peak_mode = bool(高峰模式)
-        read_timeout = 60 if peak_mode else 90
+        read_timeout = 60 if peak_mode else 120
         request_timeout = (connect_timeout, read_timeout)
         continue_on_error = True  # 总是容错
         configured_workers = self.config_manager.load_max_workers()
@@ -379,6 +389,7 @@ class BananaImageNode:
                 prompt,
                 model_type,
                 aspect_ratio,
+                image_size,
                 top_p,
                 encoded_input_images,
                 request_timeout,

@@ -59,6 +59,15 @@ class GeminiApiClient:
         normalized = aspect_ratio.strip()
         return self._ASPECT_RATIO_ALIASES.get(normalized, normalized)
 
+    def _normalize_model_id(self, model_type: Optional[str]) -> str:
+        model = (model_type or "").strip()
+        if "/models/" in model:
+            model = model.split("/models/", 1)[1]
+        for prefix in ("models/", "v1beta/"):
+            if model.startswith(prefix):
+                model = model.split("/", 1)[1]
+        return model
+
     def create_request_data(
         self,
         prompt: str,
@@ -66,6 +75,8 @@ class GeminiApiClient:
         aspect_ratio: str,
         top_p: float,
         input_images_b64: Optional[List[str]] = None,
+        model_type: Optional[str] = None,
+        image_size: Optional[str] = None,
     ) -> Dict[str, Any]:
         prompt_text = (prompt or "").strip()
         if not prompt_text and not input_images_b64:
@@ -94,10 +105,21 @@ class GeminiApiClient:
         if isinstance(seed, int) and seed >= 0:
             generation_config["seed"] = seed
 
-        # 修复：imageConfig 应该在 generationConfig 里面，而不是 imageGenerationConfig
+        image_config: Dict[str, Any] = {}
         aspect = self._normalize_aspect_ratio(aspect_ratio)
         if aspect:
-            generation_config["imageConfig"] = {"aspectRatio": aspect}
+            image_config["aspectRatio"] = aspect
+
+        normalized_model = self._normalize_model_id(model_type)
+        if normalized_model.startswith("gemini-3-pro-image-preview") or normalized_model.startswith("gemini-3-pro-image"):
+            normalized_size = (image_size or "2K").strip().upper()
+            valid_sizes = {"1K", "2K", "4K"}
+            if normalized_size not in valid_sizes:
+                normalized_size = "2K"
+            image_config["image_size"] = normalized_size
+
+        if image_config:
+            generation_config["imageConfig"] = image_config
 
         request_body: Dict[str, Any] = {
             "contents": [content],
@@ -255,6 +277,7 @@ class GeminiApiClient:
             except (requests.Timeout, requests.ConnectionError) as exc:
                 last_error = exc
                 duration = time.time() - start
+                # 连接阶段失败：可以安全重试，不会产生计费
                 if isinstance(exc, requests.ConnectTimeout) or isinstance(
                     exc, requests.ConnectionError
                 ):
@@ -265,15 +288,17 @@ class GeminiApiClient:
                     self.logger.warning(
                         f"连接阶段失败：{model_type}（耗时 {duration:.1f}s，尝试 {attempt}/{effective_max_retries}）"
                     )
+                    last_error_hint = hint
                 else:
+                    # 读取阶段超时：请求已送达且可能已计费，避免自动重试导致双计费
                     last_error_phase = "read"
                     hint = (
-                        f"服务器在 {duration:.1f}s 内未返回数据，剩余读取时间 {max(0.0, remaining_read):.1f}s"
+                        f"服务器在 {duration:.1f}s 内未返回数据，可能已开始生成；为避免重复计费，已停止自动重试"
                     )
-                    self.logger.warning(
-                        f"服务器响应缓慢：{model_type}（耗时 {duration:.1f}s，尝试 {attempt}/{effective_max_retries}）"
+                    last_error_hint = hint
+                    raise RuntimeError(
+                        f"模型 {model_type} 响应超时（可能已计费）：{hint}"
                     )
-                last_error_hint = hint
             except requests.HTTPError as exc:
                 last_error = exc
                 status = exc.response.status_code if exc.response else None

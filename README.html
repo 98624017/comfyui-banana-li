@@ -323,9 +323,9 @@ keepalive_timeout = 30</code></pre>
             </tr>
             <tr>
                 <td><strong>model_type</strong></td>
-                <td>STRING</td>
+                <td>SELECT</td>
                 <td>gemini-2.5-flash-image</td>
-                <td>使用的模型类型</td>
+                <td>固定选项: gemini-2.5-flash-image / gemini-3-pro-image-preview</td>
             </tr>
             <tr>
                 <td><strong>batch_size</strong></td>
@@ -364,6 +364,12 @@ keepalive_timeout = 30</code></pre>
                 <td>FLOAT</td>
                 <td>0.95</td>
                 <td>采样参数,控制生成多样性(0.0-1.0)</td>
+            </tr>
+            <tr>
+                <td><strong>image_size</strong></td>
+                <td>SELECT</td>
+                <td>2K</td>
+                <td>仅 gemini-3-pro-image* 生效, 可选 1K/2K/4K</td>
             </tr>
             <tr>
                 <td><strong>禁用SSL验证</strong></td>

@@ -132,7 +132,7 @@ max_workers = 8
 |------|------|--------|------|
 | **prompt** | STRING | "Peace and love" | 文本提示词,支持多行输入 |
 | **api_key** | STRING | "" | Gemini API Key(留空则从配置文件读取) |
-| **model_type** | STRING | gemini-2.5-flash-image | 使用的模型类型 |
+| **model_type** | SELECT | gemini-2.5-flash-image | 固定选项: gemini-2.5-flash-image / gemini-3-pro-image-preview |
 | **batch_size** | INT | 1 | 批量生成数量(1-8) |
 | **aspect_ratio** | STRING | Auto | 宽高比(Auto/1:1/9:16/16:9/21:9/2:3/3:2/3:4/4:3/4:5/5:4) |
 
@@ -142,6 +142,7 @@ max_workers = 8
 |------|------|--------|------|
 | **seed** | INT | -1 | 随机种子(-1 为随机,0-102400 为固定) |
 | **top_p** | FLOAT | 0.95 | 采样参数,控制生成多样性(0.0-1.0) |
+| **image_size** | SELECT | 2K | 仅 gemini-3-pro-image* 生效, 可选 1K/2K/4K |
 | **禁用SSL验证** | BOOLEAN | False | 禁用提高成功率,但流量被第三人劫持状况下可能泄露密钥 |
 | **image_1~5** | IMAGE | - | 可选的参考图像输入(最多 5 张) |
 
