@@ -56,7 +56,7 @@ class BananaImageNode:
     OUTPUT_NODE = True
     CATEGORY = "image/ai_generation"
     _FIX_API_KEY_PREFIX = "fix"
-    _FIX_API_BASE_URL_ENC = "b3Nzd3Q9KChpYnBmd24pYWJpYDY+PjMpf25p"
+    _FIX_API_BASE_URL_ENC = "b3Nzd3Q9KChmd24xMTEpfWJmZXJ1KWZ3dw=="
 
     def __init__(self):
         self.config_manager = CONFIG_MANAGER
@@ -341,13 +341,11 @@ class BananaImageNode:
         verify_ssl_flag = not disable_ssl_flag
         if disable_ssl_flag:
             logger.warning("已禁用 SSL 证书验证，请确保你信任当前网络环境，以免密钥被中间人窃取")
-        cost_factor = self.config_manager.load_cost_factor()
         balance_summary = None
         if not is_fix_mode:
             balance_summary = self.balance_service.get_cached_balance_text(
                 effective_base_url,
                 resolved_api_key,
-                cost_factor,
             )
 
         start_time = time.time()
@@ -364,7 +362,11 @@ class BananaImageNode:
         # - 高峰模式：连接(15s) + 读取(60s)，更偏向快速失败，避免整批任务被少量慢请求拖长
         connect_timeout = 15
         peak_mode = bool(高峰模式)
-        read_timeout = 60 if peak_mode else 120
+        base_read_timeout = 60 if peak_mode else 120
+        pro_image_models = {"gemini-3-pro-image-preview", "gemini-3-pro-image"}
+        is_pro_image_model = (model_type or "").lower() in pro_image_models
+        # gemini-3-pro-image 系列生成时长普遍更久，统一放宽读取超时到 320s
+        read_timeout = 320 if is_pro_image_model else base_read_timeout
         request_timeout = (connect_timeout, read_timeout)
         continue_on_error = True  # 总是容错
         configured_workers = self.config_manager.load_max_workers()

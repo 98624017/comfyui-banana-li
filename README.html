@@ -233,7 +233,7 @@
           <li>📐 <strong>多种比例</strong> - 支持 1:1、16:9、9:16、21:9 等多种宽高比</li>
           <li>🎲 <strong>种子控制</strong> - 精确控制生成结果的随机性</li>
           <li>🔄 <strong>智能重试</strong> - 内置指数退避重试机制,提高成功率</li>
-          <li>💰 <strong>余额显示</strong> - 可便捷查询账户余额和费用预估</li>
+          <li>💰 <strong>积分显示</strong> - 可便捷查询已用/可用积分及查询时间</li>
           <li>⚡ <strong>并发处理</strong> - 多线程并发生成,提升效率</li>
           <li>🎯 <strong>错误提示</strong> - 失败时生成可视化错误提示图像</li>
           <li>🌈 <strong>彩色日志</strong> - 线程安全的彩色日志系统,支持进度条</li>
@@ -262,7 +262,7 @@ cd comfyui-banana-li</code></pre>
 # 你的 API Key
 api_key = YOUR_API_KEY_HERE
 
-# Token 换算人民币调节系数(请勿调整,影响准确性)
+# balance_cost_factor 已废弃, 保留默认值即可
 balance_cost_factor = 0.6
 
 # 最大并发工作线程数(建议 4-8,主要影响本地 CPU 解码/处理并发)
@@ -425,9 +425,9 @@ keepalive_timeout = 30</code></pre>
     <h3>余额监控</h3>
     <p>节点内置 Web UI 扩展,可以在 ComfyUI 界面中实时查看:</p>
     <ul>
-        <li>💰 账户余额</li>
-        <li>📊 Token 使用量</li>
-        <li>💸 预估费用</li>
+        <li>💰 剩余可用积分(后台 <code>total_available / 5</code>)</li>
+        <li>📊 已使用积分(后台 <code>total_used / 5</code>)</li>
+        <li>⏱️ 最近查询时间</li>
     </ul>
 
     <h2>🛠️ 开发</h2>

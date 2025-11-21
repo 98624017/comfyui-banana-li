@@ -90,7 +90,7 @@ cp config.ini.example config.ini
 # 你的 API Key
 api_key = YOUR_API_KEY_HERE
 
-# Token 方便用户查询剩余额度token转换系数(用户请勿调整)
+# balance_cost_factor 已废弃, 保留默认值即可
 balance_cost_factor = 0.6
 
 # 最大并发工作线程数(建议 4-8)
@@ -174,7 +174,6 @@ max_workers = 8
 ```ini
 [gemini]
 api_key = YOUR_API_KEY_HERE
-balance_cost_factor = 0.6
 max_workers = 4           # 本地 CPU 并发
 network_workers_cap = 4   # 网络并发上限
 ```
@@ -189,9 +188,9 @@ network_workers_cap = 4   # 网络并发上限
 ### 余额监控
 
 节点内置 Web UI 扩展,可以在 ComfyUI 界面中实时查看:
-- 💰 账户余额
-- 📊 Token 使用量
-- 💸 预估费用
+- 💰 剩余可用积分（后台 total_available / 5）
+- 📊 已使用积分（后台 total_used / 5）
+- ⏱️ 最近查询时间
 
 ## 🛠️ 开发
 

@@ -16,9 +16,7 @@ from logger import logger
 
 
 class BalanceService:
-    TOKENS_PER_RATE = 100000
-    CURRENCY_PER_RATE = 0.20
-    BASE_COST_PER_TOKEN = CURRENCY_PER_RATE / TOKENS_PER_RATE
+    POINTS_DIVISOR = 5.0
 
     def __init__(self, api_client, config_manager, logger_instance=logger):
         self.logger = logger_instance
@@ -88,23 +86,15 @@ class BalanceService:
         self._store_snapshot(api_base_url, sanitized, payload)
 
     @classmethod
-    def _format_number(cls, value: Optional[float]) -> str:
-        if value is None:
-            return "-"
-        if isinstance(value, (int, float)):
-            return f"{value:,.0f}"
-        return str(value)
-
-    @classmethod
-    def _format_cost(cls, tokens: Optional[float], cost_factor: float) -> str:
-        if tokens is None:
+    def _format_points(cls, token_value: Optional[float]) -> str:
+        if token_value is None:
             return "-"
         try:
-            tokens_value = float(tokens)
+            points = float(token_value) / cls.POINTS_DIVISOR
         except (TypeError, ValueError):
             return "-"
-        yuan = tokens_value * cls.BASE_COST_PER_TOKEN / cost_factor
-        return f"¥{yuan:.4f}"
+        # 积分展示不需要小数，直接去掉小数部分
+        return f"{int(points):,}"
 
     @staticmethod
     def _format_expiry(timestamp: Optional[int]) -> str:
@@ -118,14 +108,11 @@ class BalanceService:
         except Exception:
             return str(timestamp)
 
-    def format_balance_summary(self, snapshot: Dict[str, Dict], cost_factor: float = 1.0,
+    def format_balance_summary(self, snapshot: Dict[str, Dict],
                                include_stale_hint: bool = False) -> str:
-        cost_factor = self.config_manager.clamp_cost_factor(cost_factor)
         data = snapshot.get("payload", {}).get("data", {})
-        available = self._format_number(data.get("total_available"))
-        used = self._format_number(data.get("total_used"))
-        available_cost = self._format_cost(data.get("total_available"), cost_factor)
-        used_cost = self._format_cost(data.get("total_used"), cost_factor)
+        available_points = self._format_points(data.get("total_available"))
+        used_points = self._format_points(data.get("total_used"))
         expires = self._format_expiry(data.get("expires_at"))
         fetched_at = snapshot.get("fetched_at")
         if fetched_at:
@@ -137,7 +124,8 @@ class BalanceService:
 
         summary_lines = [
             f"🔑 查询时间 {fetched_text}",
-            f"估算费用: 可用 {available_cost} / 已用 {used_cost} (仅参考)",
+            f"剩余可用积分: {available_points}",
+            f"已使用积分: {used_points}",
             f"到期: {expires}"
         ]
         if include_stale_hint and self._is_snapshot_stale(snapshot):
@@ -148,7 +136,7 @@ class BalanceService:
                 )
         return "\n".join(summary_lines)
 
-    def get_cached_balance_text(self, api_base_url: str, api_key: str, cost_factor: float = 1.0) -> Optional[str]:
+    def get_cached_balance_text(self, api_base_url: str, api_key: str) -> Optional[str]:
         sanitized = self.config_manager.sanitize_api_key(api_key)
         if not sanitized:
             return None
@@ -156,7 +144,7 @@ class BalanceService:
         if not snapshot:
             return None
         try:
-            return self.format_balance_summary(snapshot, cost_factor, include_stale_hint=True)
+            return self.format_balance_summary(snapshot, include_stale_hint=True)
         except Exception:
             return None
 
@@ -207,7 +195,6 @@ class BalanceService:
                 self.config_manager.sanitize_api_key(api_key_from_request)
                 or self.config_manager.sanitize_api_key(self.config_manager.load_api_key())
             )
-            cost_factor = self.config_manager.load_cost_factor()
             loop = asyncio.get_running_loop()
 
             if not refresh:
@@ -222,13 +209,12 @@ class BalanceService:
                         "stale": True
                     })
 
-                summary = self.format_balance_summary(snapshot, cost_factor, include_stale_hint=True)
+                summary = self.format_balance_summary(snapshot, include_stale_hint=True)
                 return web.json_response({
                     "success": True,
                     "data": snapshot.get("payload", {}).get("data"),
                     "raw": snapshot.get("payload"),
                     "summary": summary,
-                    "cost_factor": cost_factor,
                     "cached": True,
                     "stale": self._is_snapshot_stale(snapshot)
                 })
@@ -251,13 +237,12 @@ class BalanceService:
                 snapshot = self._get_snapshot(base_url, api_key)
                 if snapshot is None:
                     raise RuntimeError("余额缓存更新失败")
-                summary = self.format_balance_summary(snapshot, cost_factor)
+                summary = self.format_balance_summary(snapshot)
                 return web.json_response({
                     "success": True,
                     "data": snapshot.get("payload", {}).get("data"),
                     "raw": snapshot.get("payload"),
                     "summary": summary,
-                    "cost_factor": cost_factor,
                     "cached": False,
                     "stale": False
                 })

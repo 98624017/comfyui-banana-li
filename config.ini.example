@@ -2,9 +2,6 @@
 # 联系Li_18727107073购买
 api_key = YOUR_API_KEY_HERE
 
-# Token 换算人民币调节系数（请勿调整，影响准确性）
-balance_cost_factor = 0.6
-
 # 最大并发工作线程数（建议 4-8，根据你的机器性能调整）
 # 主要影响本地 CPU 侧的解码/处理并发度
 max_workers = 4

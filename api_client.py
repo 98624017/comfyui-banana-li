@@ -100,7 +100,6 @@ class GeminiApiClient:
         content = {"role": "user", "parts": parts}
         generation_config: Dict[str, Any] = {
             "topP": float(top_p),
-            "maxOutputTokens": 8192,
             "responseModalities": ["IMAGE"],
         }
         if isinstance(seed, int) and seed >= 0:
@@ -250,6 +249,34 @@ class GeminiApiClient:
             read = self._DEFAULT_READ_TIMEOUT
         return (max(1.0, connect), max(5.0, read))
 
+    def _summarize_error_response(self, response: Optional[requests.Response]) -> str:
+        """
+        提取对用户安全的错误摘要，避免暴露源站费用或请求 ID 等细节。
+        """
+        if response is None:
+            return "无响应内容"
+
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                error_obj = payload.get("error")
+                if isinstance(error_obj, dict):
+                    message = (error_obj.get("message") or "").strip()
+                    normalized = message.lower()
+                    if "token quota" in normalized and "not enough" in normalized:
+                        return "余额不足：账户额度不足以完成本次请求，请充值后重试"
+                    if message:
+                        return message[:300]
+                message = payload.get("message")
+                if isinstance(message, str) and message.strip():
+                    return message.strip()[:300]
+        except Exception:
+            # JSON 解析失败时回退到纯文本
+            pass
+
+        body = response.text or "无响应内容"
+        return body[:300]
+
     def _build_generate_content_url(self, base_url: str, model_type: str) -> str:
         base = (base_url or "").strip().rstrip("/")
         if not base:
@@ -352,7 +379,50 @@ class GeminiApiClient:
             except (requests.Timeout, requests.ConnectionError) as exc:
                 last_error = exc
                 duration = time.time() - start
-                # 连接阶段失败：可以安全重试，不会产生计费
+                exc_text = str(exc).lower()
+                # 识别“已连接但被远端关闭/重置”的场景，避免误判为 DNS/代理问题
+                remote_closed = isinstance(exc, requests.ConnectionError) and any(
+                    keyword in exc_text
+                    for keyword in (
+                        "remote end closed",
+                        "connection reset",
+                        "connection aborted",
+                        "bad status line",
+                        "broken pipe",
+                    )
+                )
+                exceeded_connect_budget = duration > (connect_timeout + 1.0)
+                is_read_timeout = (
+                    isinstance(exc, requests.Timeout)
+                    and not isinstance(exc, requests.ConnectTimeout)
+                    and not isinstance(exc, requests.ConnectionError)
+                )
+
+                if is_read_timeout:
+                    # 读取阶段超时：请求已送达且可能仍在处理，避免自动重试造成额外压力
+                    last_error_phase = "read"
+                    hint = (
+                        f"服务器在 {duration:.1f}s 内未返回数据，可能仍在生成；为避免重复请求干扰，已停止自动重试"
+                    )
+                    last_error_hint = hint
+                    raise RuntimeError(
+                        f"模型 {model_type} 响应超时：{hint}"
+                    )
+
+                if remote_closed or exceeded_connect_budget:
+                    # 已建立连接但在生成阶段被远端关闭，多见于上游/LB 空闲超时（4K 耗时更长时更容易触发）
+                    last_error_phase = "read"
+                    hint = (
+                        f"服务器在 {duration:.1f}s 后中断连接，通常是生成阶段耗时超过上游或网关的空闲时间限制，"
+                        "请稍后重试、或尝试绕过代理"
+                    )
+                    last_error_hint = hint
+                    self.logger.warning(
+                        f"生成阶段连接被远端关闭：{model_type}（耗时 {duration:.1f}s，尝试 {attempt}/{effective_max_retries}）"
+                    )
+                    raise RuntimeError(f"模型 {model_type} 响应中途断开：{hint}")
+
+                # 连接阶段失败：可以安全重试，不会触发生成流程
                 if isinstance(exc, requests.ConnectTimeout) or isinstance(
                     exc, requests.ConnectionError
                 ):
@@ -365,21 +435,17 @@ class GeminiApiClient:
                     )
                     last_error_hint = hint
                 else:
-                    # 读取阶段超时：请求已送达且可能已计费，避免自动重试导致双计费
+                    # 兜底：视为读取阶段异常
                     last_error_phase = "read"
-                    hint = (
-                        f"服务器在 {duration:.1f}s 内未返回数据，可能已开始生成；为避免重复计费，已停止自动重试"
-                    )
-                    last_error_hint = hint
+                    last_error_hint = "模型响应阶段异常，请检查网络链路或服务状态"
                     raise RuntimeError(
-                        f"模型 {model_type} 响应超时（可能已计费）：{hint}"
+                        f"模型 {model_type} 响应异常：{last_error_hint}"
                     )
             except requests.HTTPError as exc:
                 last_error = exc
                 status = exc.response.status_code if exc.response else None
-                # 避免泄露源站域名：仅使用服务器响应内容，不使用异常字符串
-                body = exc.response.text if exc.response is not None else "无响应内容"
-                truncated = body[:300]
+                # 避免泄露源站域名和费用细节：仅使用脱敏后的摘要
+                truncated = self._summarize_error_response(exc.response)
                 if status in self._RETRYABLE_STATUS and attempt < effective_max_retries:
                     self.logger.warning(
                         f"HTTP {status}，将重试：{truncated}"
@@ -391,8 +457,15 @@ class GeminiApiClient:
             except requests.RequestException as exc:
                 last_error = exc
                 error_type = type(exc).__name__
+                status = None
+                if getattr(exc, "response", None) is not None:
+                    try:
+                        status = exc.response.status_code
+                    except Exception:
+                        status = None
+                status_text = f"（HTTP {status}）" if status else ""
                 raise RuntimeError(
-                    f"HTTP 请求失败（{error_type}），请检查网络连接、代理或证书配置"
+                    f"HTTP 请求失败{status_text}（{error_type}），请检查网络连接、代理或证书配置"
                 )
 
             if attempt < effective_max_retries:
@@ -472,6 +545,7 @@ class GeminiApiClient:
         timeout_tuple = self._resolve_timeout(timeout)
         # 内部错误详情仅写入日志，不直接暴露真实源站给前端用户
         internal_errors: List[str] = []
+        status_codes: List[int] = []
 
         for url in self._build_balance_urls(api_base_url):
             try:
@@ -483,6 +557,7 @@ class GeminiApiClient:
                 )
                 if response.status_code == 404:
                     internal_errors.append("404 未找到余额查询端点")
+                    status_codes.append(response.status_code)
                     continue
                 response.raise_for_status()
                 payload = response.json()
@@ -493,10 +568,23 @@ class GeminiApiClient:
                 internal_errors.append(f"数据格式错误: {exc}")
             except requests.HTTPError as exc:
                 status = exc.response.status_code if exc.response else None
-                internal_errors.append(f"HTTP {status} 错误")
+                if status is not None:
+                    status_codes.append(status)
+                    internal_errors.append(f"HTTP {status} 错误")
+                else:
+                    internal_errors.append("HTTP 错误")
             except requests.RequestException as exc:
                 error_type = type(exc).__name__
-                internal_errors.append(f"网络错误 ({error_type})")
+                status = None
+                if getattr(exc, "response", None) is not None:
+                    try:
+                        status = exc.response.status_code
+                    except Exception:
+                        status = None
+                if status is not None:
+                    status_codes.append(status)
+                status_hint = f"HTTP {status}；" if status is not None else ""
+                internal_errors.append(f"{status_hint}网络错误 ({error_type})")
 
         if internal_errors:
             # 记录错误摘要，不包含敏感的源站地址信息
@@ -505,7 +593,11 @@ class GeminiApiClient:
             )
 
         # 对前端只返回抽象错误，避免暴露真实源站地址
-        raise RuntimeError("余额查询失败，请检查 API 服务与网络状态，或联系服务提供者")
+        status_text = ""
+        if status_codes:
+            unique_codes = sorted({code for code in status_codes})
+            status_text = f"（HTTP {', '.join(str(code) for code in unique_codes)}）"
+        raise RuntimeError(f"余额查询失败{status_text}，请检查 API 服务与网络状态，或联系服务提供者")
 
 
 __all__ = ["GeminiApiClient"]
