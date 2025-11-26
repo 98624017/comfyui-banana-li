@@ -1,19 +1,3 @@
-"""
-通用ComfyUI自定义节点加载器
-支持任何文件夹名称，自动检测并加载节点
-"""
-
-import os
-import sys
-import importlib.util
-from pathlib import Path
-
-# 导入新的日志系统
-from .logger import logger
-
-# 获取当前文件夹路径
-current_dir = Path(__file__).parent
-
 # 确保当前目录在 sys.path 中，以便被加载的模块能找到 logger 等依赖
 if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
