@@ -6,6 +6,8 @@ license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.20.0",
     "opencv-python>=4.0.0",
+    "scikit-image",
+    "segment-anything",
 ]
 
 [project.urls]
