@@ -12,18 +12,29 @@ REPO_NAME = "comfyui-banana-li"
 RELEASE_TAG = "latest" # 或者指定版本
 
 # 需要下载的模块列表 (不带扩展名)
+# 需要下载的模块列表 (不带扩展名)
 MODULES = [
     "api_client",
     "config_manager",
     "banana_local_crop",
     "banana_binding",
+    "banana_binding_nodes",
     "image_codec",
     "balance_service",
+    "logger",
+    "task_runner",
+    "Gemini_Imagen_Generator",
     "segment_nodes_li/segment_anything_ultra_Li",
     "segment_nodes_li/segment_anything_func",
     "segment_nodes_li/mask_bounding_box_aligned",
     "segment_nodes_li/imagefunc",
     "segment_nodes_li/blendmodes",
+    "segment_nodes_li/sam_hq/automatic",
+    "segment_nodes_li/sam_hq/build_sam_hq",
+    "segment_nodes_li/sam_hq/predictor",
+    "segment_nodes_li/sam_hq/modeling/image_encoder",
+    "segment_nodes_li/sam_hq/modeling/mask_decoder_hq",
+    "segment_nodes_li/sam_hq/modeling/tiny_vit",
 ]
 
 def get_platform_suffix():
@@ -85,6 +96,13 @@ def ensure_binaries():
         
         # 检查文件是否存在
         if os.path.exists(target_full_path):
+            continue
+            
+        # [NEW] 检查源码是否存在。如果存在源码（开发环境），则不需要下载二进制文件
+        source_filename = f"{module_path}.py"
+        source_full_path = os.path.join(current_dir, source_filename)
+        if os.path.exists(source_full_path):
+            # print(f"Source file found for {module}, skipping binary download.")
             continue
             
         print(f"Missing binary: {target_filename}")
