@@ -5,6 +5,7 @@ version = "0.0.8"
 license = { file = "LICENSE" }
 dependencies = [
     "requests>=2.20.0",
+    "opencv-python>=4.0.0",
 ]
 
 [project.urls]
