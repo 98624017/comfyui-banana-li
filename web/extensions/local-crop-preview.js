@@ -213,8 +213,43 @@ function ensurePreviewWidget(node) {
         ctx.fillStyle = "#d9d9d9";
         ctx.font = "13px sans-serif";
         ctx.textBaseline = "middle";
+
         const text = state.status || "暂无预览";
-        ctx.fillText(text, 16, y + availableH / 2);
+
+        // 简单的自动换行逻辑
+        const fontSize = 13;
+        const lineHeight = 18;
+        const maxWidth = w - 32; // 左右各留 16px 边距
+
+        const words = text.split('');
+        let line = '';
+        const lines = [];
+
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n];
+          const metrics = ctx.measureText(testLine);
+          const testWidth = metrics.width;
+          if (testWidth > maxWidth && n > 0) {
+            lines.push(line);
+            line = words[n];
+          } else {
+            line = testLine;
+          }
+        }
+        lines.push(line);
+
+        // 垂直居中绘制多行文本
+        const totalHeight = lines.length * lineHeight;
+        let startY = y + (availableH - totalHeight) / 2 + lineHeight / 2; // + lineHeight/2 因为 textBaseline='middle'
+
+        // 如果高度不够，就从顶部开始画，防止被切掉
+        if (totalHeight > availableH) {
+          startY = y + lineHeight / 2 + 10;
+        }
+
+        for (let i = 0; i < lines.length; i++) {
+          ctx.fillText(lines[i], 16, startY + (i * lineHeight));
+        }
       }
       ctx.restore();
     },
