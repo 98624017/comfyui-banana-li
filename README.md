@@ -62,6 +62,15 @@ Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana �
 > - 常规使用时将 `batch_size` 控制在 **1-4 张** 以内,兼顾效率与稳定性;  
 > - 仅在明确接受“偶尔不返图但仍计费”的情况下再尝试 8 张高并发抽卡。
 
+## 🆕 Xinbao ModelScope 节点
+
+- **文生图**：`Xinbao ModelScope 文生图`，模型下拉提供 `Qwen/Qwen-Image` 与 `Tongyi-MAI/Z-Image-Turbo`，批量 1-4，支持种子复现、负面提示词、尺寸/步数/guidance 控制。
+- **图像编辑**：`Xinbao ModelScope 图像编辑`，仅使用 `Qwen/Qwen-Image`，先尝试上传参考图获取 `image_url`，失败回退为 base64；同样支持 batch_size<=4 与固定种子。
+- **图像描述**：`Xinbao ModelScope 图像描述`，纯 requests 直连 ModelScope chat 接口生成中文描述，不依赖 openai 库。
+- **统一特性**：全部节点只接受单一 API Key、不写入磁盘、直接添加 Bearer 头发起 UTF-8 JSON 请求；Key 为空时立即报错并拒绝外部调用。节点内提供“绕过代理”“禁用SSL验证”开关（默认使用配置文件的代理偏好）。
+
+> 致谢：本仓库的 ModelScope 集成基于社区开源项目 [ComfyUI-ModelScope-API](https://github.com/hujuying/ComfyUI-ModelScope-API) 的早期探索，我们在其基础上做了精简与适配，感谢原作者的贡献。
+
 ## 🚀 安装
 
 ### 方法 1: 通过 手动安装
@@ -110,6 +119,17 @@ max_workers = 8
 你可以通过以下方式获取 NanoBanana API Key:
 
 - **API 购买**: 联系 Li_18727107073 购买 API Key
+
+### 4. Edge KV 预检配置
+
+为避免密钥被绕过前端盗刷，节点在发起上游前会调用 Edge KV 校验接口：
+
+- `kv_auth_enabled`：是否开启预检，默认 `true`，仅调试时可设为 `false`。
+- `kv_auth_endpoint`：KV 校验地址，默认 `https://apicha.yfeng.wang/api/check`。
+- `kv_auth_token`：可选，作为 Bearer Token 发送。
+- `kv_auth_timeout_seconds`：超时秒数（默认 8，建议 5-10）。
+- `kv_auth_fail_open_on_5xx`：是否在 5xx/超时时放行（默认开启，可设为 false 禁止放行；放行不写缓存）。
+- `kv_auth_disable_ssl_verify`：需要忽略自签证书时设为 `true`。
 
 
 ## 📝 使用方法

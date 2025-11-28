@@ -23,7 +23,7 @@ if str(current_dir) not in sys.path:
 # 初始化节点映射字典
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
-__version__ = "V0.03"
+__version__ = "V0.09"
 
 # 需要跳过的文件列表
 SKIP_FILES = {
@@ -44,8 +44,8 @@ SKIP_FILES = {
 }
 
 # 显示加载器标题
-logger.header("🍌 Banana Node Loader")
-logger.info(f"Banana Gemini version {__version__}")
+logger.header("心宝❤Banana Loader")
+logger.info(f"心宝❤Banana version {__version__}")
 
 # 自动查找并加载所有节点文件 (优先加载源码 .py，其次加载编译文件 .pyd/.so)
 # 1. 收集所有可能的模块文件

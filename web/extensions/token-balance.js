@@ -288,6 +288,14 @@ function getDisableSslFlag(node) {
   return typeof widget.value === "boolean" ? widget.value : null;
 }
 
+function getRouteChoice(node) {
+  const widget = node.widgets?.find((w) => w.name === "线路");
+  if (!widget || typeof widget.value !== "string") {
+    return "";
+  }
+  return widget.value.trim();
+}
+
 function formatSummary(data) {
   if (!data) {
     return "未返回余额信息";
@@ -314,6 +322,10 @@ async function requestBalance(node, refresh) {
   const disableSsl = getDisableSslFlag(node);
   if (disableSsl !== null) {
     url += `&disable_ssl_verify=${disableSsl ? 1 : 0}`;
+  }
+  const routeChoice = getRouteChoice(node);
+  if (routeChoice) {
+    url += `&route=${encodeURIComponent(routeChoice)}`;
   }
   const response = await api.fetchApi(url, { method: "GET" });
   const payload = await response.json().catch(() => ({}));
