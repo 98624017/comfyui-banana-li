@@ -38,7 +38,7 @@ function updateModelOptions(node) {
   modelWidget.options.values = values.slice();
 
   if (!values.includes(modelWidget.value)) {
-    modelWidget.value = "gemini-2.5-flash-c";
+    modelWidget.value = values[0] || modelWidget.value; // 回退到当前频道的首个有效模型
   }
 
   node?.graph?.setDirtyCanvas(true, true);
