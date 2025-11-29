@@ -43,7 +43,7 @@ SKIP_FILES = {
     "verify_integration.py",
 }
 
-# 显示加载器标题
+# 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
 logger.header("心宝❤Banana Loader")
 logger.info(f"心宝❤Banana version {__version__}")
 
