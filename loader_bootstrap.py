@@ -107,10 +107,29 @@ import json
 # GitHub Release 配置
 REPO_OWNER = "98624017"
 REPO_NAME = "comfyui-banana-li"
-RELEASE_TAG = "latest" # 或者指定版本
+# RELEASE_TAG 将在运行时从 pyproject.toml 读取
 
 # 默认模块列表 (Fallback)
 MODULES = []
+
+def get_plugin_version():
+    """从 pyproject.toml 读取插件版本"""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    pyproject_path = os.path.join(current_dir, "pyproject.toml")
+    
+    try:
+        with open(pyproject_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith("version"):
+                    # 提取 version = "x.y.z" 中的 x.y.z
+                    parts = line.split("=")
+                    if len(parts) == 2:
+                        version = parts[1].strip().strip('"').strip("'")
+                        return version
+    except Exception as e:
+        print(f"Banana-Li: Failed to read version from pyproject.toml: {e}")
+    
+    return "0.0.0" # Fallback
 
 def get_platform_suffix():
     """获取当前平台的后缀"""
@@ -198,28 +217,6 @@ def get_modules_manifest(base_url):
         print(f"Failed to fetch manifest: {e}")
         return None
 
-def get_remote_release_info(repo_owner, repo_name, release_tag):
-    """获取远程 Release 信息 (用于检查更新)"""
-    api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases/latest"
-    if release_tag != "latest":
-        api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases/tags/{release_tag}"
-    
-    try:
-        # 使用简单的 urllib 请求，不依赖 requests
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        
-        req = urllib.request.Request(api_url)
-        req.add_header("User-Agent", "ComfyUI-Banana-Li-Updater")
-        
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
-            data = json.loads(response.read().decode('utf-8'))
-            return data.get("id")
-    except Exception as e:
-        print(f"Banana-Li: Failed to check for updates: {e}")
-        return None
-
 def cleanup_linux_binaries(directory):
     """递归清理目录下的 .pyd 文件 (Linux 专用)"""
     print("Banana-Li: Cleaning up Windows binaries (.pyd) for Linux environment...")
@@ -251,43 +248,45 @@ def ensure_binaries():
     # Linux 平台清理 .pyd 文件
     cleanup_linux_binaries(current_dir)
     
-    # 自动更新逻辑
-    release_id_file = os.path.join(current_dir, ".banana_release_id")
-    remote_id = get_remote_release_info(REPO_OWNER, REPO_NAME, RELEASE_TAG)
+    # 获取当前代码版本
+    current_version = get_plugin_version()
+    release_tag = f"v{current_version}"
     
-    if remote_id:
-        local_id = None
-        if os.path.exists(release_id_file):
-            try:
-                with open(release_id_file, "r") as f:
-                    local_id = int(f.read().strip())
-            except:
-                pass
-        
-        if local_id != remote_id:
-            print(f"Banana-Li: New version detected (Release ID: {remote_id}). Updating binaries...")
-            # 强制清理所有 .so 文件以触发重新下载
-            for root, dirs, files in os.walk(current_dir):
-                for file in files:
-                    if file.endswith(".so"):
-                        try:
-                            os.remove(os.path.join(root, file))
-                        except:
-                            pass
+    # 检查本地记录的安装版本
+    version_file = os.path.join(current_dir, ".banana_version")
+    installed_version = None
+    if os.path.exists(version_file):
+        try:
+            with open(version_file, "r") as f:
+                installed_version = f.read().strip()
+        except:
+            pass
             
-            # 更新本地 ID
-            try:
-                with open(release_id_file, "w") as f:
-                    f.write(str(remote_id))
-            except Exception as e:
-                print(f"Failed to write release ID: {e}")
+    # 如果本地记录的版本与当前代码版本不一致，强制清理旧文件
+    if installed_version != current_version:
+        print(f"Banana-Li: Version mismatch (Installed: {installed_version}, Current: {current_version}). Cleaning up old binaries...")
+        # 强制清理所有 .so 文件以触发重新下载
+        for root, dirs, files in os.walk(current_dir):
+            for file in files:
+                if file.endswith(".so"):
+                    try:
+                        os.remove(os.path.join(root, file))
+                    except:
+                        pass
+                        
+        # 更新本地版本记录
+        try:
+            with open(version_file, "w") as f:
+                f.write(current_version)
+        except Exception as e:
+            print(f"Failed to write version file: {e}")
     
-    base_url = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/{RELEASE_TAG}"
+    base_url = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/{release_tag}"
     
     # 尝试获取动态模块列表
     modules_list = get_modules_manifest(base_url)
     if not modules_list:
-        print("WARNING: Could not fetch modules.json. Using fallback list (empty).")
+        print(f"WARNING: Could not fetch modules.json from {release_tag}. Using fallback list (empty).")
         modules_list = MODULES
     
     platform_suffix = get_platform_suffix()
