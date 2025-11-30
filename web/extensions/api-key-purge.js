@@ -8,28 +8,13 @@ const CLEANER_CLASS = "XinbaoApiKeyPurge";
 const CHANNEL_BANANA = "香蕉同款渠道";
 const CHANNEL_MODAO = "魔搭社区";
 const TARGETS = [
-  { className: "BananaImageNode", fields: ["api_key"] },
+  { className: "BananaImageNode", fields: ["banana_api_key"] },
   { className: "XinbaoModelScopeImageGenerate", fields: ["modelscope_api_key"] },
   { className: "XinbaoModelScopeCaption", fields: ["banana_api_key", "modelscope_api_key"] },
 ];
 const CLEANER_FIELDS = {
   banana: "banana_global_api_key",
   modao: "modelscope_global_api_key",
-  auto: "导出时清除apikey",
-};
-const SENSITIVE_FIELDS = new Set([
-  "api_key",
-  "banana_api_key",
-  "modelscope_api_key",
-  "banana_global_api_key",
-  "modelscope_global_api_key",
-]);
-// 针对导出数据中 widgets_values 的位置清理（按节点类型映射索引）
-const NODE_WIDGET_STRIP_INDEX = {
-  BananaImageNode: [1], // api_key
-  XinbaoModelScopeCaption: [1, 2], // banana_api_key, modelscope_api_key
-  XinbaoModelScopeImageGenerate: [1], // modelscope_api_key
-  XinbaoApiKeyPurge: [0, 1], // global keys
 };
 
 function findWidget(node, name) {
@@ -46,6 +31,15 @@ function findWidget(node, name) {
     }
   }
   return null;
+}
+
+function stripLegacyAutoCleanWidget(node) {
+  if (!node || !Array.isArray(node.widgets)) return;
+  const idx = node.widgets.findIndex((w) => w?.name === "导出时清除apikey");
+  if (idx >= 0) {
+    node.widgets.splice(idx, 1);
+    markDirty(node);
+  }
 }
 
 function isEmptyValue(value) {
@@ -111,12 +105,10 @@ function readGlobalKeys() {
   const cleaners = collectCleanerNodes();
   let bananaKey = "";
   let modaoKey = "";
-  let autoClean = false;
 
   cleaners.forEach((node) => {
     const bananaWidget = findWidget(node, CLEANER_FIELDS.banana);
     const modaoWidget = findWidget(node, CLEANER_FIELDS.modao);
-    const autoWidget = findWidget(node, CLEANER_FIELDS.auto);
 
     if (!bananaKey && bananaWidget && typeof bananaWidget.value === "string") {
       bananaKey = bananaWidget.value.trim();
@@ -124,12 +116,9 @@ function readGlobalKeys() {
     if (!modaoKey && modaoWidget && typeof modaoWidget.value === "string") {
       modaoKey = modaoWidget.value.trim();
     }
-    if (!autoClean && autoWidget && typeof autoWidget.value === "boolean") {
-      autoClean = autoWidget.value;
-    }
   });
 
-  return { bananaKey, modaoKey, autoClean };
+  return { bananaKey, modaoKey };
 }
 
 function clearNodeWidget(node, widgetOrName) {
@@ -317,7 +306,7 @@ function applyBackfillTransient() {
   const bananaNodes = findNodesByClassName("BananaImageNode");
   bananaNodes.forEach((node) => {
     if (!isEmptyValue(bananaKey)) {
-      setIfEmpty(node, "api_key", bananaKey);
+      setIfEmpty(node, "banana_api_key", bananaKey);
     }
   });
 
@@ -352,16 +341,68 @@ function applyBackfillTransient() {
 
 function ensureManualButton(node) {
   if (!node || node.__bananaKeyPurgeReady) return;
+  stripLegacyAutoCleanWidget(node);
 
-  const widget = node.addWidget(
-    "button",
-    "立即清除",
-    "立即清除",
-    () => {
-      performClean();
-    }, 
-    { serialize: false }
-  );
+  const widget = node.addCustomWidget({
+    name: "banana-purge-now",
+    type: "banana-purge-now",
+    node,
+    draw(ctx, _, widgetWidth, y, height) {
+      const text = "立即清除全图apikey";
+      const font = "12px sans-serif";
+      const paddingX = 14;
+      const marginTop = 6;
+      const radius = 8;
+      const active = this.__active;
+      const previousFont = ctx.font;
+      const previousAlign = ctx.textAlign;
+      ctx.font = font;
+      const textWidth = ctx.measureText(text).width;
+      const rectWidth = Math.max(textWidth + paddingX * 2, 170);
+      const rectHeight = Math.max((height || 22), 22);
+      const x = (widgetWidth - rectWidth) / 2;
+      const yPos = y + marginTop;
+      ctx.fillStyle = active ? "#c0392b" : "#e74c3c";
+      ctx.strokeStyle = active ? "#922b21" : "#b03a2e";
+      ctx.beginPath();
+      if (ctx.roundRect) {
+        ctx.roundRect(x, yPos, rectWidth, rectHeight, radius);
+      } else {
+        ctx.rect(x, yPos, rectWidth, rectHeight);
+      }
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.fillText(text, x + rectWidth / 2, yPos + rectHeight * 0.65);
+      ctx.font = previousFont;
+      ctx.textAlign = previousAlign;
+      this.__rect = { x, y: yPos, w: rectWidth, h: rectHeight };
+    },
+    mouse(event, position) {
+      const trigger = ((globalThis.LiteGraph && globalThis.LiteGraph.pointerevents_method) || "pointer") + "down";
+      if (event?.type !== trigger) return false;
+      const rect = this.__rect;
+      if (!rect) return false;
+      const [x, y] = position;
+      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+        this.__active = true;
+        this.node?.graph?.setDirtyCanvas(true, true);
+        setTimeout(() => {
+          this.__active = false;
+          this.node?.graph?.setDirtyCanvas(true, true);
+        }, 180);
+        performClean();
+        return true;
+      }
+      return false;
+    },
+    computeSize(widgetWidth) {
+      // extra top margin
+      return [widgetWidth, 34];
+    },
+    serialize: false,
+  });
   node.__bananaKeyPurgeReady = true;
   // 尽量把按钮挪到密钥输入后面，便于发现
   if (Array.isArray(node.widgets) && widget) {
@@ -391,159 +432,6 @@ function wrapWithPreAction(target, method, preAction) {
   target[method].__bananaWrapped = true;
 }
 
-function sanitizeNodeInputs(inputs) {
-  if (!inputs || typeof inputs !== "object") return false;
-  let changed = false;
-  Object.keys(inputs).forEach((key) => {
-    if (SENSITIVE_FIELDS.has(key) && typeof inputs[key] === "string") {
-      if (inputs[key] !== "") {
-        inputs[key] = "";
-        changed = true;
-      }
-    }
-  });
-  return changed;
-}
-
-function sanitizeWorkflowNodes(nodes) {
-  if (!Array.isArray(nodes)) return false;
-  let changed = false;
-  nodes.forEach((node) => {
-    if (!node || typeof node !== "object") return;
-    const nodeType = node.type || node.class_type;
-    const idxList = NODE_WIDGET_STRIP_INDEX[nodeType];
-    if (idxList && Array.isArray(node.widgets_values)) {
-      idxList.forEach((idx) => {
-        if (idx in node.widgets_values && node.widgets_values[idx] !== "") {
-          node.widgets_values[idx] = "";
-          changed = true;
-        }
-      });
-    }
-    if (sanitizeNodeInputs(node.inputs)) {
-      changed = true;
-    }
-  });
-  return changed;
-}
-
-function scrubObjectStrings(obj) {
-  let changed = false;
-  const stack = [obj];
-  while (stack.length) {
-    const cur = stack.pop();
-    if (!cur || typeof cur !== "object") continue;
-    if (Array.isArray(cur)) {
-      cur.forEach((v, i) => {
-        if (typeof v === "string") {
-          if (SENSITIVE_FIELDS.has(String(i)) || v.startsWith("sk-") || v.startsWith("ms-")) {
-            cur[i] = "";
-            changed = true;
-          }
-        } else if (typeof v === "object") {
-          stack.push(v);
-        }
-      });
-      continue;
-    }
-    Object.keys(cur).forEach((key) => {
-      const val = cur[key];
-      if (typeof val === "string") {
-        if (SENSITIVE_FIELDS.has(key) || val.startsWith("sk-") || val.startsWith("ms-")) {
-          cur[key] = "";
-          changed = true;
-        }
-      } else if (typeof val === "object") {
-        stack.push(val);
-      }
-    });
-  }
-  return changed;
-}
-
-function sanitizePromptNodes(promptObj) {
-  if (!promptObj || typeof promptObj !== "object") return false;
-  let changed = false;
-  Object.values(promptObj).forEach((node) => {
-    if (!node || typeof node !== "object") return;
-    if (sanitizeNodeInputs(node.inputs)) {
-      changed = true;
-    }
-  });
-  return changed;
-}
-
-function sanitizeExportData(data) {
-  if (!data || typeof data !== "object") return { changed: false, sanitized: data };
-  let changed = false;
-  // workflow export（workflow.nodes）
-  if (Array.isArray(data.nodes)) {
-    if (sanitizeWorkflowNodes(data.nodes)) {
-      changed = true;
-    }
-  }
-  if (data.workflow && typeof data.workflow === "object" && Array.isArray(data.workflow.nodes)) {
-    if (sanitizeWorkflowNodes(data.workflow.nodes)) {
-      changed = true;
-    }
-  }
-  // API 导出（prompt map）
-  if (data.output && typeof data.output === "object") {
-    if (sanitizePromptNodes(data.output)) {
-      changed = true;
-    }
-  }
-  // 兜底：直接是 prompt map
-  if (!Array.isArray(data.nodes) && data.output === undefined && data.workflow === undefined) {
-    if (sanitizePromptNodes(data)) {
-      changed = true;
-    }
-  }
-  // 兜底：任意深度的字符串扫描
-  if (scrubObjectStrings(data)) {
-    changed = true;
-  }
-  return { changed, sanitized: data };
-}
-
-async function sanitizeExportBlob(blob) {
-  if (!blob) return null;
-  let parsed;
-  try {
-    const text = await blob.text();
-    parsed = JSON.parse(text);
-  } catch (error) {
-    console.warn(`[${EXTENSION}] 无法解析导出文件，跳过清理`, error);
-    return null;
-  }
-  const { changed, sanitized } = sanitizeExportData(parsed);
-  if (!changed) return null;
-  const cleanText = JSON.stringify(sanitized, null, 2);
-  return new Blob([cleanText], { type: "application/json" });
-}
-
-function setupAutoClean() {
-  const utils = window?.comfyAPI?.utils;
-  const originalDownloadBlob = utils?.downloadBlob;
-  if (!originalDownloadBlob || originalDownloadBlob.__bananaWrapped) return;
-
-  utils.downloadBlob = async function patchedDownloadBlob(filename, blob) {
-    const { autoClean } = readGlobalKeys();
-    if (!autoClean) {
-      return originalDownloadBlob.call(this, filename, blob);
-    }
-
-    try {
-      const sanitizedBlob = await sanitizeExportBlob(blob);
-      return originalDownloadBlob.call(this, filename, sanitizedBlob || blob);
-    } catch (error) {
-      console.warn(`[${EXTENSION}] 导出重写失败，降级为原始导出`, error);
-      return originalDownloadBlob.call(this, filename, blob);
-    }
-  };
-  utils.downloadBlob.__bananaWrapped = true;
-}
-
 function setupBackfill() {
   const RUN_METHODS = ["queuePrompt", "enqueuePrompt", "processQueue"];
   RUN_METHODS.forEach((method) => {
@@ -564,7 +452,7 @@ function setupBackfill() {
 app.registerExtension({
   name: EXTENSION,
   setup() {
-    setupAutoClean();
+    collectCleanerNodes().forEach(stripLegacyAutoCleanWidget);
     setupBackfill();
   },
   nodeCreated(node) {

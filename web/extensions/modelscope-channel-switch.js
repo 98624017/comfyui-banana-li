@@ -4,6 +4,7 @@ const EXTENSION = "banana.modelscopeChannelSwitch";
 const TARGET_NODE = "XinbaoModelScopeCaption";
 const CHANNEL_BANANA = "香蕉同款渠道";
 const CHANNEL_MODAO = "魔搭社区";
+const BANANA_DEFAULT_MODEL = "gemini-2.5-flash-c";
 const BANANA_MODELS = [
   "gemini-3-pro-preview-c（较耗时）",
   "gemini-2.5-pro-c（较耗时）",
@@ -38,7 +39,8 @@ function updateModelOptions(node) {
   modelWidget.options.values = values.slice();
 
   if (!values.includes(modelWidget.value)) {
-    modelWidget.value = values[0] || modelWidget.value; // 回退到当前频道的首个有效模型
+    const preferred = channel === CHANNEL_BANANA ? BANANA_DEFAULT_MODEL : values[0];
+    modelWidget.value = values.includes(preferred) ? preferred : values[0] || modelWidget.value; // 回退到当前频道的默认模型
   }
 
   node?.graph?.setDirtyCanvas(true, true);
