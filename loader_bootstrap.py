@@ -5,37 +5,15 @@ import urllib.request
 import ssl
 import shutil
 import hashlib
+import json
 
 # GitHub Release 配置
 REPO_OWNER = "98624017"
 REPO_NAME = "comfyui-banana-li"
 RELEASE_TAG = "latest" # 或者指定版本
 
-# 需要下载的模块列表 (不带扩展名)
-# 需要下载的模块列表 (不带扩展名)
-MODULES = [
-    "api_client",
-    "config_manager",
-    "banana_local_crop",
-    "banana_binding",
-    "banana_binding_nodes",
-    "image_codec",
-    "balance_service",
-    "logger",
-    "task_runner",
-    "Gemini_Imagen_Generator",
-    "segment_nodes_li/segment_anything_ultra_Li",
-    "segment_nodes_li/segment_anything_func",
-    "segment_nodes_li/mask_bounding_box_aligned",
-    "segment_nodes_li/imagefunc",
-    "segment_nodes_li/blendmodes",
-    "segment_nodes_li/sam_hq/automatic",
-    "segment_nodes_li/sam_hq/build_sam_hq",
-    "segment_nodes_li/sam_hq/predictor",
-    "segment_nodes_li/sam_hq/modeling/image_encoder",
-    "segment_nodes_li/sam_hq/modeling/mask_decoder_hq",
-    "segment_nodes_li/sam_hq/modeling/tiny_vit",
-]
+# 默认模块列表 (Fallback)
+MODULES = []
 
 def get_platform_suffix():
     """获取当前平台的后缀"""
@@ -77,18 +55,41 @@ def download_file(url, target_path):
         print(f"Failed to download {url}: {e}")
         return False
 
+def get_modules_manifest(base_url):
+    """下载并解析 modules.json"""
+    manifest_url = f"{base_url}/modules.json"
+    print(f"Fetching manifest from {manifest_url}...")
+    
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    
+    try:
+        with urllib.request.urlopen(manifest_url, context=ctx) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            return data
+    except Exception as e:
+        print(f"Failed to fetch manifest: {e}")
+        return None
+
 def ensure_binaries():
     """检查并下载缺失的二进制文件"""
     print("Banana-Li: Checking for binary extensions...")
     
     base_url = f"https://github.com/{REPO_OWNER}/{REPO_NAME}/releases/download/{RELEASE_TAG}"
     
+    # 尝试获取动态模块列表
+    modules_list = get_modules_manifest(base_url)
+    if not modules_list:
+        print("WARNING: Could not fetch modules.json. Using fallback list (empty).")
+        modules_list = MODULES
+    
     platform_suffix = get_platform_suffix()
     target_suffix = get_target_suffix()
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
     
-    for module in MODULES:
+    for module in modules_list:
         # 构建本地目标路径
         module_path = module.replace("/", os.sep)
         target_filename = f"{module_path}{target_suffix}"

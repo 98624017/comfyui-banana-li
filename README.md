@@ -1,10 +1,10 @@
 <div align="center">
 
-# 心宝❤Banana - ComfyUI Gemini / ModelScope 节点合集
+# 心宝❤Banana - ComfyUI Gemini Image Generator
 
 <img src="https://youke1.picui.cn/s1/2025/11/12/69140968ed33b.jpg" width="200" alt="Banana Logo"/>
 
-> ComfyUI 自定义节点，整合 Google NanoBanana Gemini 生图能力、绑定增强链路与 ModelScope 直连节点。
+> 为 ComfyUI 提供 Nano Banana 图像生成能力的自定义节点
 
 [![GitHub](https://img.shields.io/badge/GitHub-comfyui--banana--li-blue)](https://github.com/98624017/comfyui-banana-li)
 [![Python](https://img.shields.io/badge/Python-3.10+-blue)](https://www.python.org/)
@@ -15,23 +15,34 @@
 
 ## 📖 简介
 
-- 核心生图节点：基于 NanoBanana Gemini 接口，支持文生图、图生图、混合提示词、多比例与批量输出。
-- 绑定增强链路：兼容心宝增强节点（绑定生成/局部裁剪/分割），可组成“绑定 → 前置增强 → 生图 → 后置还原”的完整流水线。
-- 余额与日志：内置 Web 扩展显示余额，线程安全彩色日志，失败时返回可视化错误提示图。
-- ModelScope 直连：提供“心宝❤魔搭文生图”“心宝❤多模态LLM反推”节点，轻量直连官方 API，无需额外 SDK。
+Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana 的图像生成 API。支持文本到图像、图像到图像等多种生成模式,让你在 ComfyUI 工作流中轻松使用最新的 AI 图像生成技术。
 
-> 所有示例均使用占位符，密钥与内部地址请根据官方渠道获取，不要在公开仓库泄露。
+大家好，我是李心宝，一个在电商设计领域摸爬滚打了多年的老设计。我专注在如何让 AI 技术真正在咱们的日常工作中落地，提升效率。我乐于分享自己深度评测、实践过、确实好用的 AI 工作流和设计技巧，希望能和大家一起探索、共同进步。我整理、制作了不少免费的工作流和资料，希望能帮你少走弯路。
 
-## 📮 联系方式与资料
-- GitHub Issues：提交问题与需求 https://github.com/98624017/comfyui-banana-li/issues
-- B 站：[@李心宝爱玩Ai](https://space.bilibili.com/470042957)（更新动态与教程）
-- 微信：`Li_18727107073`（公开沟通渠道）
-- 免费资料与专属工作流介绍：飞书文档 https://lcni4wauvbvx.feishu.cn/docx/BODPdxQ51ontbzxbq7tcUvlsnMd
+当然，如果你需要更精细化、针对性更强的解决方案，我也提供付费的专属工作流。期待能和更多志同道合的设计人、电商人、AI实践者们交个朋友，一起把 AI 设计玩明白！
+
+### <img src="https://img.shields.io/badge/飞书-00D6B9?logo=lark&logoColor=white" align="center" style="vertical-align: middle;"> 免费资料与专属工作流介绍
+
+📂 [点击访问飞书文档](https://lcni4wauvbvx.feishu.cn/docx/BODPdxQ51ontbzxbq7tcUvlsnMd) - 获取免费资料及专属工作流详情
+
+
 
 ## 📺 视频教程
-- [香蕉 100% 不偏移技巧，效率提升](https://www.bilibili.com/video/BV1ir1cBVEeA)
-- [心宝顶级放大系列 - 人像放大](https://www.bilibili.com/video/BV1J7yXBoEq6)
-- [4K 透溶 V2：纠正背景透视与融合](https://www.bilibili.com/video/BV1mhaazPE13)
+
+访问我的 [B站主页](https://space.bilibili.com/470042957) 观看详细的使用教程和案例演示!
+
+### 部分视频
+
+- <img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> [香蕉100%不偏移技巧,效率提升N倍](https://www.bilibili.com/video/BV1ir1cBVEeA)
+- <img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> [心宝顶级放大系列-03人像类放大](https://www.bilibili.com/video/BV1J7yXBoEq6)
+- <img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> [心宝顶级放大05-100%修手修脚](https://www.bilibili.com/video/BV1LSnZzoERc)
+- <img src="https://img.shields.io/badge/Bilibili-ff69b4?logo=bilibili&logoColor=white" align="center" style="vertical-align: middle;"> [4K透溶V2——纠正背景透视,一键换背景、融合、打光](https://www.bilibili.com/video/BV1mhaazPE13)
+
+## 📮 联系方式
+
+- **GitHub Issues**: [提交问题和建议](https://github.com/98624017/comfyui-banana-li/issues)
+- **Bilibili**: [@心宝](https://space.bilibili.com/470042957) - 视频教程和更新动态
+- **获取公开资料及API 购买**: <img src="https://img.shields.io/badge/WeChat-07C160?logo=wechat&logoColor=white" align="center" style="vertical-align: middle;"> Li_18727107073
 
 ## ✨ 功能特性
 
@@ -42,7 +53,8 @@
 - ⚡ 并发控制：本地处理与网络并发可独立配置
 - 💰 余额查询：Web UI 扩展实时展示可用/已用额度
 - 🧩 增强节点：绑定上下文、裁剪贴图、分割一键集成
-- 🆕 ModelScope：文生图与多模态图像描述两类节点
+- 🆕 ModelScope：文生图与多模态图像描述两类节点
+
 
 ## 🚀 安装
 
