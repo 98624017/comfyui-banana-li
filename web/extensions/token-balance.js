@@ -265,7 +265,9 @@ function ensureWidgets(node) {
 }
 
 function getApiKey(node) {
-  const widget = node.widgets?.find((w) => w.name === "api_key");
+  const widget =
+    node.widgets?.find((w) => w.name === "banana_api_key") ||
+    node.widgets?.find((w) => w.name === "api_key");
   if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
     return widget.value.trim();
   }
@@ -313,7 +315,7 @@ async function requestBalance(node, refresh) {
   const apiKey = getApiKey(node);
   let url = `/banana/token_usage?refresh=${refresh ? 1 : 0}`;
   if (apiKey) {
-    url += `&api_key=${encodeURIComponent(apiKey)}`;
+    url += `&banana_api_key=${encodeURIComponent(apiKey)}`;
   }
   const bypassProxy = getBypassProxyFlag(node);
   if (bypassProxy !== null) {
