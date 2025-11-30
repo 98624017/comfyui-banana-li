@@ -18,7 +18,7 @@
 - 核心生图节点：基于 NanoBanana Gemini 接口，支持文生图、图生图、混合提示词、多比例与批量输出。
 - 绑定增强链路：兼容心宝增强节点（绑定生成/局部裁剪/分割），可组成“绑定 → 前置增强 → 生图 → 后置还原”的完整流水线。
 - 余额与日志：内置 Web 扩展显示余额，线程安全彩色日志，失败时返回可视化错误提示图。
-- ModelScope 直连：附带 Xinbao ModelScope 文生图/图像编辑/图像描述节点，轻量直连官方 API，无需额外 SDK。
+- ModelScope 直连：提供“心宝❤魔搭文生图”“心宝❤多模态LLM反推”节点，轻量直连官方 API，无需额外 SDK。
 
 > 所有示例均使用占位符，密钥与内部地址请根据官方渠道获取，不要在公开仓库泄露。
 
@@ -42,7 +42,7 @@
 - ⚡ 并发控制：本地处理与网络并发可独立配置
 - 💰 余额查询：Web UI 扩展实时展示可用/已用额度
 - 🧩 增强节点：绑定上下文、裁剪贴图、分割一键集成
-- 🆕 ModelScope：文生图/图像编辑/图像描述三种节点
+- 🆕 ModelScope：文生图与多模态图像描述两类节点
 
 ## 🚀 安装
 
@@ -72,9 +72,10 @@ cd comfyui-banana-li
 - **心宝❤Banana**：Gemini 生图主节点，支持文本/图像输入、批量、多比例、禁用 SSL（可选）。
 - **心宝❤绑定生成** / **BananaLocalCropPreprocess/Paste** / **SegmentAnythingUltraLi**：绑定上下文与裁剪/分割增强节点，仅在需要绑定链路时接入。
 - **余额扩展**：`web/extensions/token-balance.js` 自动加载，展示可用/已用额度与最近查询时间。
-- **Xinbao ModelScope 文生图**：`Qwen/Qwen-Image`、`Tongyi-MAI/Z-Image-Turbo`，batch 1-4，支持种子、负面提示词、尺寸/步数/guidance。
-- **Xinbao ModelScope 图像编辑**：`Qwen/Qwen-Image`，优先上传参考图获取 `image_url`，失败回退 base64；batch 1-4。
-- **Xinbao ModelScope 图像描述**：直连 ModelScope chat 接口生成中文描述，仅需单一 API Key。
+- **心宝❤魔搭文生图**：`Tongyi-MAI/Z-Image-Turbo`，batch 1-4，支持种子、负面提示词、尺寸/步数/guidance。
+
+- **心宝❤多模态LLM反推**：多图输入（最多 3 张），可选香蕉/魔搭渠道，生成中文描述，支持温度与 max_tokens 设置。
+
 
 ## 📝 快速上手
 
@@ -97,9 +98,11 @@ cd comfyui-banana-li
 仅在需要局部编辑/对齐裁剪时接入，普通生图可不连接 `binding_context`。
 
 ### ModelScope 示例
-- 文生图：选择 `Xinbao ModelScope 文生图` 节点，填入 ModelScope API Key，batch ≤4，按需设置尺寸/步数。
-- 图像编辑：在 `Xinbao ModelScope 图像编辑` 中上传参考图并填写提示词，支持固定种子。
-- 图像描述：使用 `Xinbao ModelScope 图像描述`，输入图像获取中文描述。
+
+- 文生图：选择 `心宝❤魔搭文生图` 节点，填入 ModelScope API Key，batch ≤4，按需设置尺寸/步数。
+
+- 图像描述：使用 `心宝❤多模态LLM反推`，可输入最多 3 张图像并选择香蕉/魔搭渠道生成中文描述。
+
 
 ## 🎛️ 关键参数（Gemini 生图）
 
