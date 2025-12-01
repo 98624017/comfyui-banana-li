@@ -1,15 +1,15 @@
 {
   "id": "b7fa9d75-1aba-4dfc-83e1-4dace1652b14",
   "revision": 0,
-  "last_node_id": 154,
-  "last_link_id": 2137,
+  "last_node_id": 157,
+  "last_link_id": 2138,
   "nodes": [
     {
       "id": 18,
       "type": "LoadImage",
       "pos": [
-        -3913.517578125,
-        -920.0355834960938
+        -3424.0121032148363,
+        -171.64979703259095
       ],
       "size": [
         375.7708740234375,
@@ -100,7 +100,7 @@
         }
       },
       "widgets_values": [
-        "clipspace/clipspace-painted-masked-17643256.png [input]",
+        "clipspace/clipspace-painted-masked-311841.png [input]",
         "image"
       ]
     },
@@ -116,7 +116,7 @@
         801.948974609375
       ],
       "flags": {},
-      "order": 4,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -254,11 +254,11 @@
       },
       "widgets_values": [
         "图1灰色区域替换为图2的洗澡桶，保持洗澡桶的一致性，小孩开心的洗澡玩水",
-        "sk-SxYnPIyRc2CyiJDyTRTY0zDEvo4PmbcU2sMofbFviHkKsCFD",
+        "sk-WFRMr8OGOx1rI3ye57tqPOM8dnB8Ma08n3Ua1Oe7rp84vL5j",
         "gemini-3-pro-image-preview",
         1,
         "Auto",
-        51105,
+        27512,
         "randomize",
         0.95,
         "2K",
@@ -273,8 +273,8 @@
       "id": 87,
       "type": "LoadImage",
       "pos": [
-        -3403.204717935302,
-        -1025.0782363169078
+        -3420.3386785727066,
+        -829.7522735238023
       ],
       "size": [
         333.4523620605469,
@@ -336,7 +336,7 @@
         }
       },
       "widgets_values": [
-        "03-侧面无篮子 拷贝.jpg",
+        "微信图片_20251113221252_88178_1689.jpg",
         "image"
       ]
     },
@@ -352,7 +352,7 @@
         383.9144592285156
       ],
       "flags": {},
-      "order": 6,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -403,28 +403,30 @@
         }
       ],
       "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
         "cnr_id": "comfyui-banana-gemini",
         "ver": "9789b64c6d5e1465fc482c736a803d891165a8d9",
-        "Node name for S&R": "BananaBindingGenerate"
-      }
+        "Node name for S&R": "BananaBindingGenerate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": []
     },
     {
       "id": 153,
       "type": "BananaLocalCropPreprocess",
       "pos": [
-        -2768.6513594967773,
-        -378.07688956398613
+        -2889.9585249348156,
+        -297.1992526475722
       ],
       "size": [
-        270,
-        660
+        337.96904654585796,
+        648.6718255756904
       ],
       "flags": {},
-      "order": 3,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
@@ -464,21 +466,29 @@
           "links": [
             2114
           ]
+        },
+        {
+          "name": "debug_mask",
+          "type": "MASK",
+          "links": [
+            2138
+          ]
         }
       ],
       "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
         "cnr_id": "comfyui-banana-gemini",
         "ver": "9789b64c6d5e1465fc482c736a803d891165a8d9",
-        "Node name for S&R": "BananaLocalCropPreprocess"
+        "Node name for S&R": "BananaLocalCropPreprocess",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
       },
       "widgets_values": [
-        1,
-        1,
-        0.3,
+        6,
+        0.54,
+        0.5,
         2048,
         1536,
         8,
@@ -499,7 +509,7 @@
         134.08814077943248
       ],
       "flags": {},
-      "order": 5,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -528,14 +538,105 @@
         }
       ],
       "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
         "cnr_id": "comfyui-banana-gemini",
         "ver": "9789b64c6d5e1465fc482c736a803d891165a8d9",
-        "Node name for S&R": "BananaLocalCropPaste"
-      }
+        "Node name for S&R": "BananaLocalCropPaste",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 156,
+      "type": "MaskPreview+",
+      "pos": [
+        -2461.9976518161343,
+        -168.92038705835597
+      ],
+      "size": [
+        317.8811296788284,
+        540.9068217475999
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 2138
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "MaskPreview+",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 157,
+      "type": "ImageCompositeMasked",
+      "pos": [
+        -2238.6634487340257,
+        395.5404812300352
+      ],
+      "size": [
+        270,
+        146
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "destination",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "source",
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.71",
+        "Node name for S&R": "ImageCompositeMasked",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": [
+        0,
+        0,
+        false
+      ]
     }
   ],
   "links": [
@@ -1762,6 +1863,14 @@
       153,
       2,
       "IMAGE"
+    ],
+    [
+      2138,
+      153,
+      3,
+      156,
+      0,
+      "MASK"
     ]
   ],
   "groups": [
@@ -1783,10 +1892,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 0.5730855330117126,
+      "scale": 0.47362440744771106,
       "offset": [
-        3849.434317314429,
-        1454.6213479691892
+        3718.687611492588,
+        1066.9154789318081
       ]
     },
     "links_added_by_ue": [],

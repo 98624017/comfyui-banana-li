@@ -1,8 +1,8 @@
 {
   "id": "b7fa9d75-1aba-4dfc-83e1-4dace1652b14",
   "revision": 0,
-  "last_node_id": 151,
-  "last_link_id": 2113,
+  "last_node_id": 153,
+  "last_link_id": 2117,
   "nodes": [
     {
       "id": 18,
@@ -16,7 +16,7 @@
         412.55059814453125
       ],
       "flags": {},
-      "order": 0,
+      "order": 1,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -100,7 +100,7 @@
         }
       },
       "widgets_values": [
-        "clipspace/clipspace-painted-masked-17643256.png [input]",
+        "clipspace/clipspace-painted-masked-1228661.png [input]",
         "image"
       ]
     },
@@ -118,7 +118,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 12,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -246,7 +246,7 @@
         285.7076110839844
       ],
       "flags": {},
-      "order": 1,
+      "order": 0,
       "mode": 0,
       "inputs": [],
       "outputs": [],
@@ -274,7 +274,7 @@
         801.948974609375
       ],
       "flags": {},
-      "order": 27,
+      "order": 29,
       "mode": 0,
       "inputs": [
         {
@@ -311,7 +311,7 @@
           "name": "binding_context",
           "shape": 7,
           "type": "BANANA_BINDING",
-          "link": null
+          "link": 2116
         }
       ],
       "outputs": [
@@ -412,17 +412,17 @@
       },
       "widgets_values": [
         "图1灰色区域替换为图2的洗澡桶，保持洗澡桶的一致性，小孩开心的洗澡玩水",
-        "sk-SxYnPIyRc2CyiJDyTRTY0zDEvo4PmbcU2sMofbFviHkKsCFD",
-        "gemini-3-pro-image-preview",
+        "sk-WFRMr8OGOx1rI3ye57tqPOM8dnB8Ma08n3Ua1Oe7rp84vL5j",
+        "gemini-2.5-flash-image",
         1,
         "Auto",
-        51105,
+        43237,
         "randomize",
         0.95,
         "2K",
         null,
         false,
-        false,
+        "香港专线",
         "暂无余额缓存，请点击“查询余额”按钮刷新",
         null
       ]
@@ -431,21 +431,21 @@
       "id": 72,
       "type": "LayerMask: MaskBoundingBoxAligned",
       "pos": [
-        -1559.785888671875,
-        -2609.543212890625
+        -1422.3575630315518,
+        -2608.724341322606
       ],
       "size": [
         291.08203125,
         202
       ],
       "flags": {},
-      "order": 16,
+      "order": 17,
       "mode": 0,
       "inputs": [
         {
           "name": "binding_context",
           "type": "BANANA_BINDING",
-          "link": null
+          "link": 2115
         },
         {
           "name": "mask",
@@ -538,11 +538,11 @@
         -2595.52685546875
       ],
       "size": [
-        140,
+        159.5015625,
         66
       ],
       "flags": {},
-      "order": 21,
+      "order": 22,
       "mode": 0,
       "inputs": [
         {
@@ -599,7 +599,7 @@
         150
       ],
       "flags": {},
-      "order": 23,
+      "order": 24,
       "mode": 0,
       "inputs": [
         {
@@ -667,7 +667,7 @@
         146
       ],
       "flags": {},
-      "order": 25,
+      "order": 26,
       "mode": 0,
       "inputs": [
         {
@@ -724,7 +724,7 @@
         78
       ],
       "flags": {},
-      "order": 26,
+      "order": 28,
       "mode": 0,
       "inputs": [
         {
@@ -781,11 +781,11 @@
         -2453.3193359375
       ],
       "size": [
-        140,
+        198.6236328125,
         26
       ],
       "flags": {},
-      "order": 17,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
@@ -829,7 +829,7 @@
         202
       ],
       "flags": {},
-      "order": 20,
+      "order": 21,
       "mode": 0,
       "inputs": [
         {
@@ -881,7 +881,7 @@
         58
       ],
       "flags": {},
-      "order": 22,
+      "order": 23,
       "mode": 0,
       "inputs": [
         {
@@ -927,7 +927,7 @@
         146
       ],
       "flags": {},
-      "order": 30,
+      "order": 32,
       "mode": 0,
       "inputs": [
         {
@@ -1003,7 +1003,7 @@
         401.9680480957031
       ],
       "flags": {},
-      "order": 4,
+      "order": 2,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1058,7 +1058,7 @@
         }
       },
       "widgets_values": [
-        "03-侧面无篮子 拷贝.jpg",
+        "1 (小).jpg",
         "image"
       ]
     },
@@ -1076,7 +1076,7 @@
       "flags": {
         "collapsed": false
       },
-      "order": 10,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -1119,8 +1119,8 @@
       "id": 89,
       "type": "ImageResize+",
       "pos": [
-        -1451.1763916015625,
-        -2244.22314453125
+        -1332.6427735723976,
+        -2220.3394849339384
       ],
       "size": [
         270,
@@ -1207,11 +1207,11 @@
         -1957.1529541015625
       ],
       "size": [
-        140,
+        159.5015625,
         66
       ],
       "flags": {},
-      "order": 19,
+      "order": 20,
       "mode": 0,
       "inputs": [
         {
@@ -1268,7 +1268,7 @@
         130
       ],
       "flags": {},
-      "order": 29,
+      "order": 31,
       "mode": 0,
       "inputs": [
         {
@@ -1334,7 +1334,7 @@
         106
       ],
       "flags": {},
-      "order": 9,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -1378,15 +1378,15 @@
       "id": 100,
       "type": "EG_RY_HTC",
       "pos": [
-        -3898.0869140625,
-        -1253.8470458984375
+        -3900.2083957253208,
+        -1275.0834702808643
       ],
       "size": [
         396.0765686035156,
         58
       ],
       "flags": {},
-      "order": 3,
+      "order": 7,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1428,22 +1428,22 @@
         }
       },
       "widgets_values": [
-        3.2589896076772398
+        5.765623451648459
       ]
     },
     {
       "id": 101,
       "type": "CM_FloatToInt",
       "pos": [
-        -1434.871337890625,
-        -3066.05908203125
+        -1516.7497745380929,
+        -3044.1273778469917
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 13,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -1486,15 +1486,15 @@
       "id": 104,
       "type": "EG_RY_HT",
       "pos": [
-        -3890.98388671875,
-        -1068.0428466796875
+        -3086.8207524146887,
+        -964.3058756637037
       ],
       "size": [
         384.25689697265625,
         58
       ],
       "flags": {},
-      "order": 2,
+      "order": 5,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -1573,7 +1573,7 @@
         218
       ],
       "flags": {},
-      "order": 18,
+      "order": 19,
       "mode": 0,
       "inputs": [
         {
@@ -1649,15 +1649,15 @@
       "id": 111,
       "type": "GrowMaskWithBlur",
       "pos": [
-        -627.4296264648438,
-        -2135.929443359375
+        364.0701586924725,
+        -1415.126862179903
       ],
       "size": [
         292.748046875,
         246
       ],
       "flags": {},
-      "order": 24,
+      "order": 25,
       "mode": 0,
       "inputs": [
         {
@@ -1682,14 +1682,15 @@
           "type": "MASK",
           "links": [
             2090,
-            2112
+            2112,
+            2117
           ]
         },
         {
           "label": "反转遮罩",
           "name": "mask_inverted",
           "type": "MASK",
-          "links": null
+          "links": []
         }
       ],
       "properties": {
@@ -1727,7 +1728,7 @@
         258
       ],
       "flags": {},
-      "order": 28,
+      "order": 30,
       "mode": 0,
       "inputs": [
         {
@@ -1752,8 +1753,8 @@
       "id": 131,
       "type": "ImpactInt",
       "pos": [
-        -3429.263916015625,
-        -1223.4281005859375
+        -3320.837863568764,
+        -1235.598034489517
       ],
       "size": [
         270,
@@ -1872,7 +1873,7 @@
         58
       ],
       "flags": {},
-      "order": 8,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -1925,7 +1926,7 @@
         383.9144592285156
       ],
       "flags": {},
-      "order": 31,
+      "order": 33,
       "mode": 0,
       "inputs": [
         {
@@ -1954,15 +1955,15 @@
       "id": 143,
       "type": "CM_FloatToInt",
       "pos": [
-        -917.4347534179688,
-        -1634.9488525390625
+        -550.7363459076489,
+        -1561.7699401428174
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 15,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -2005,15 +2006,15 @@
       "id": 144,
       "type": "EG_RY_HTA",
       "pos": [
-        -3419.744140625,
-        -619.7001953125
+        -3048.901145802252,
+        -664.1598916229001
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 5,
+      "order": 8,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2059,22 +2060,22 @@
         }
       },
       "widgets_values": [
-        0.3
+        0.5
       ]
     },
     {
       "id": 145,
       "type": "CM_FloatBinaryOperation",
       "pos": [
-        -429.1698913574219,
-        -1670.5391845703125
+        -1168.9998989154833,
+        -1519.356548448337
       ],
       "size": [
         270,
         106
       ],
       "flags": {},
-      "order": 11,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -2118,15 +2119,15 @@
       "id": 151,
       "type": "ImpactInt",
       "pos": [
-        -3817.96875,
-        -1415.4779052734375
+        -3796.5686603999693,
+        -1444.7866363837695
       ],
       "size": [
         270,
         58
       ],
       "flags": {},
-      "order": 7,
+      "order": 4,
       "mode": 0,
       "inputs": [],
       "outputs": [
@@ -2155,6 +2156,78 @@
       "widgets_values": [
         2048
       ]
+    },
+    {
+      "id": 152,
+      "type": "MaskPreview+",
+      "pos": [
+        889.3002776931133,
+        -1222.5350514389618
+      ],
+      "size": [
+        278.96133911439483,
+        281.6465536150147
+      ],
+      "flags": {},
+      "order": 27,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "遮罩",
+          "name": "mask",
+          "type": "MASK",
+          "link": 2117
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfyui_essentials",
+        "ver": "9d9f4bedfc9f0321c19faf71855e228c93bd0dc9",
+        "Node name for S&R": "MaskPreview+",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 153,
+      "type": "BananaBindingGenerate",
+      "pos": [
+        -1815.092179347806,
+        -2523.256205425081
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "binding_context",
+          "type": "BANANA_BINDING",
+          "links": [
+            2115,
+            2116
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "3026a824e8613da1dcdc981b19056b005a151c06",
+        "Node name for S&R": "BananaBindingGenerate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.1"
+        }
+      },
+      "widgets_values": []
     }
   ],
   "links": [
@@ -5053,6 +5126,30 @@
       27,
       2,
       "INT"
+    ],
+    [
+      2115,
+      153,
+      0,
+      72,
+      0,
+      "BANANA_BINDING"
+    ],
+    [
+      2116,
+      153,
+      0,
+      71,
+      5,
+      "BANANA_BINDING"
+    ],
+    [
+      2117,
+      111,
+      0,
+      152,
+      0,
+      "MASK"
     ]
   ],
   "groups": [
@@ -5087,10 +5184,10 @@
   "extra": {
     "ue_links": [],
     "ds": {
-      "scale": 1.1918176537727245,
+      "scale": 0.8140274938684315,
       "offset": [
-        -577.3147852805253,
-        1777.5212228415223
+        -43.80586396416925,
+        1805.4871559094402
       ]
     },
     "links_added_by_ue": [],
