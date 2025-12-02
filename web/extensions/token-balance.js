@@ -17,6 +17,8 @@ const BUTTON_ROW_HEIGHT = (liteGraphGlobal && liteGraphGlobal.NODE_WIDGET_HEIGHT
 const BUTTON_ROW_MARGIN = 14;
 const BUTTON_ROW_GAP = 8;
 const MIN_BUTTON_WIDTH = 78;
+const CLEANER_CLASS = "XinbaoApiKeyPurge";
+const CLEANER_FIELD_BANANA = "banana_global_api_key";
 
 let qrOverlay;
 
@@ -271,6 +273,10 @@ function getApiKey(node) {
   if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
     return widget.value.trim();
   }
+  const globalKey = getGlobalBananaKey();
+  if (globalKey) {
+    return globalKey;
+  }
   return "";
 }
 
@@ -298,6 +304,22 @@ function getRouteChoice(node) {
   return widget.value.trim();
 }
 
+function getGlobalBananaKey() {
+  const graph = app?.graph;
+  if (!graph) {
+    return "";
+  }
+  // 复用“心宝密钥管理”节点的全局密钥，节点留空时也能查询余额
+  const nodes = graph.findNodesByClass?.(CLEANER_CLASS) || graph.findNodesByType?.(CLEANER_CLASS) || graph.nodes || [];
+  for (const node of nodes) {
+    const widget = node?.widgets?.find?.((w) => w.name === CLEANER_FIELD_BANANA);
+    if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
+      return widget.value.trim();
+    }
+  }
+  return "";
+}
+
 function formatSummary(data) {
   if (!data) {
     return "未返回余额信息";
@@ -315,7 +337,8 @@ async function requestBalance(node, refresh) {
   const apiKey = getApiKey(node);
   let url = `/banana/token_usage?refresh=${refresh ? 1 : 0}`;
   if (apiKey) {
-    url += `&banana_api_key=${encodeURIComponent(apiKey)}`;
+    const encoded = encodeURIComponent(apiKey);
+    url += `&banana_api_key=${encoded}&api_key=${encoded}`;
   }
   const bypassProxy = getBypassProxyFlag(node);
   if (bypassProxy !== null) {
