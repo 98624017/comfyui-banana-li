@@ -310,7 +310,7 @@ function getGlobalBananaKey() {
     return "";
   }
   // 复用“心宝密钥管理”节点的全局密钥，节点留空时也能查询余额
-  const nodes = graph.findNodesByClass?.(CLEANER_CLASS) || graph.findNodesByType?.(CLEANER_CLASS) || graph.nodes || [];
+  const nodes = graph.findNodesByType?.(CLEANER_CLASS) || graph.nodes || [];
   for (const node of nodes) {
     const widget = node?.widgets?.find?.((w) => w.name === CLEANER_FIELD_BANANA);
     if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
@@ -338,7 +338,7 @@ async function requestBalance(node, refresh) {
   let url = `/banana/token_usage?refresh=${refresh ? 1 : 0}`;
   if (apiKey) {
     const encoded = encodeURIComponent(apiKey);
-    url += `&banana_api_key=${encoded}&api_key=${encoded}`;
+    url += `&banana_api_key=${encoded}`;
   }
   const bypassProxy = getBypassProxyFlag(node);
   if (bypassProxy !== null) {
