@@ -1,0 +1,21 @@
+[[snippets]]
+id = "example-quality-1"
+content = "best quality, masterpiece, 8k, ultra detailed, realistic, photorealistic"
+category = "电商"
+color = "#4CAF50"
+created_at = 1717200000000
+
+[[snippets]]
+id = "example-style-1"
+content = "cyberpunk style, neon lights, futuristic city, rain, reflection"
+category = "风格"
+color = "#795548"
+created_at = 1717200000003
+
+[[snippets]]
+id = "example-negative-1"
+content = "保持产品严格的一致性"
+category = "风格"
+color = "#F44336"
+created_at = 1717200000004
+

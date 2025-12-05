@@ -12,6 +12,7 @@ build/
 
 # 虚拟环境
 venv/
+ps_plugin/
 env/
 ENV/
 .venv
@@ -91,3 +92,5 @@ bilibili_kol_leaderboard.html
 config.ini.example
 ComfyUI-ModelScope-API/
 config.ini.example
+简化工作流.json
+fix_spec.py
