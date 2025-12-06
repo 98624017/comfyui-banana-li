@@ -252,23 +252,41 @@ class SnippetManagerWidget {
         this.filterAreaHeight = 40;
 
         this.loadSnippets();
+
+        // Scroll state
+        this.scrollY = 0;
+        this.contentHeight = 0;
+        this.viewportHeight = 0;
+        this.snippetStartY = 0;
+
+        this.isLoading = false;
     }
 
+    // Removed onWheel as scrolling is no longer needed
+    // onWheel(event) { ... } 
+
     async loadSnippets() {
+        if (this.isLoading) return;
+        this.isLoading = true;
+        this.node.setDirtyCanvas(true, true);
+
         try {
-            this.snippets = await SnippetApi.getSnippets();
+            await Promise.all([
+                SnippetApi.getSnippets().then(s => this.snippets = s),
+                new Promise(resolve => setTimeout(resolve, 500)) // Min delay for visual feedback
+            ]);
             this.updateTags();
-            this.node.setDirtyCanvas(true, true);
         } catch (e) {
             console.error("Banana Snippets: Load failed", e);
+        } finally {
+            this.isLoading = false;
+            this.node.setDirtyCanvas(true, true);
         }
     }
 
     updateTags() {
         const categories = new Set(this.snippets.map(s => s.category || "默认"));
         const others = Array.from(categories).filter(c => c !== "默认").sort();
-        // Ensure "默认" is second if it exists, otherwise just "全部" then others
-        // Actually, if "默认" is in categories, put it first.
         const hasDefault = categories.has("默认");
         this.tags = ["全部"];
         if (hasDefault) this.tags.push("默认");
@@ -280,17 +298,100 @@ class SnippetManagerWidget {
         return this.snippets.filter(s => (s.category || "默认") === this.activeTag);
     }
 
+    // Helper to calculate total height needed for the widget for a given width
+    calculateContentHeight(widgetWidth, ctx) {
+        // Must emulate the layout logic from draw()
+        // Constants matching draw()
+        const contentStartX = 15;
+        const contentWidth = widgetWidth - 30;
+        const tagHeight = 24;
+        const tagGap = 8;
+
+        ctx.font = "12px sans-serif";
+
+        // 1. Buttons Row & Tags
+        // Re-measure buttons to know reserved width
+        const editBtnText = this.editMode ? "\u9000\u51fa\u7f16\u8f91" : "\u7f16\u8f91\u6a21\u5f0f";
+        const editBtnWidth = ctx.measureText(editBtnText).width + 20;
+        const addBtnWidth = 40;
+        const refreshBtnWidth = 24;
+        const buttonsReservedWidth = editBtnWidth + addBtnWidth + refreshBtnWidth + 30;
+
+        let tagX = contentStartX;
+        let tagY = 10; // Relative to widget top
+
+        this.tags.forEach((tag) => {
+            const textWidth = ctx.measureText(tag).width + 16;
+            const isFirstLine = (tagY === 10);
+            const reserved = isFirstLine ? buttonsReservedWidth : 0;
+
+            if (tagX + textWidth > (10 + contentWidth + 15) - reserved) {
+                tagX = contentStartX;
+                tagY += tagHeight + tagGap;
+            }
+            tagX += textWidth + tagGap;
+        });
+
+        let currentY = Math.max(tagY + tagHeight + 10, 45); // Min 45 for buttons area
+
+        // Separator + Margin
+        currentY += 10;
+
+        // 2. Snippets
+        const filtered = this.getFilteredSnippets();
+        let snipX = contentStartX;
+        let snipY = currentY;
+        const snipH = 28;
+        const gap = 8;
+
+        filtered.forEach(snip => {
+            let label = snip.content;
+            if (label.length > 20) label = label.substring(0, 18) + "..";
+            const txtMeasure = ctx.measureText(label);
+            const snipW = txtMeasure.width + 20;
+
+            if (snipX + snipW > widgetWidth - 15) {
+                snipX = contentStartX;
+                snipY += snipH + gap;
+            }
+            snipX += snipW + gap;
+        });
+
+        // Final Height
+        let requiredHeight = snipY + snipH + 10;
+        if (filtered.length === 0) requiredHeight = currentY + 10;
+
+        return requiredHeight;
+    }
+
     draw(ctx, node, widgetWidth, y, height) {
-        // Background - Remove the stroke as requested ("Yellow box")
+        // 1. Auto-Resize Logic (Delta Based)
+        const neededHeight = this.calculateContentHeight(widgetWidth, ctx);
+
+        // Initialize if first run
+        if (this.lastCalculatedHeight === undefined) {
+            this.lastCalculatedHeight = neededHeight;
+        }
+
+        const diff = neededHeight - this.lastCalculatedHeight;
+
+        // Only resize if there is a meaningful change in CONTENT height
+        if (Math.abs(diff) > 1) {
+            const currentWidth = node.size[0];
+            const currentHeight = node.size[1];
+            node.setSize([currentWidth, currentHeight + diff]);
+            this.lastCalculatedHeight = neededHeight;
+        }
+
+        // --- Drawing ---
+        // Background
         ctx.fillStyle = "#1a1a1a";
         ctx.beginPath();
-        ctx.rect(10, y, widgetWidth - 20, height);
+        ctx.rect(10, y, widgetWidth - 20, neededHeight);
         ctx.fill();
-        // ctx.strokeStyle = "#333";
-        // ctx.stroke(); // Removing conflicting border
 
         const contentStartX = 15;
-        const contentWidth = widgetWidth - 30; // 15 margins
+        const contentWidth = widgetWidth - 30;
         let currentY = y + 10;
 
         ctx.font = "12px sans-serif";
@@ -298,80 +399,87 @@ class SnippetManagerWidget {
         ctx.textBaseline = "middle";
 
         // --- Buttons (Top Right) ---
-        // Calculate buttons first to know reserved space for first line of tags
-        const editBtnText = this.editMode ? "\u9000\u51fa\u7f16\u8f91" : "\u7f16\u8f91\u6a21\u5f0f"; // "退出编辑" : "编辑模式"
+        const editBtnText = this.editMode ? "\u9000\u51fa\u7f16\u8f91" : "\u7f16\u8f91\u6a21\u5f0f";
         const editBtnWidth = ctx.measureText(editBtnText).width + 20;
-        const editBtnX = 10 + contentWidth + 15 - editBtnWidth - 5; // Align right with some margin
+        const editBtnX = 10 + contentWidth + 15 - editBtnWidth - 5;
 
-        // Add Button (Left of Edit Button)
-        const addBtnText = "\u6dfb\u52a0"; // "添加"
+        const addBtnText = "\u6dfb\u52a0";
         let addBtnWidth = 40;
         let addBtnX = editBtnX - addBtnWidth - 10;
 
-        // Draw Add Button
         drawRoundedRect(ctx, addBtnX, currentY, addBtnWidth, 24, 4, "#2E7D32", "#4caf50");
         ctx.fillStyle = "#fff";
-        ctx.fillText(addBtnText, addBtnX + addBtnWidth / 2, currentY + 11); // Adjusted Y -1px for visual center
+        ctx.fillText(addBtnText, addBtnX + addBtnWidth / 2, currentY + 11);
         this.addBtnHitbox = { x: addBtnX, y: currentY, w: addBtnWidth, h: 24 };
 
         // Draw Edit Button
         ctx.fillStyle = this.editMode ? "#D84315" : "#333";
         drawRoundedRect(ctx, editBtnX, currentY, editBtnWidth, 24, 4, this.editMode ? "#D84315" : "#333", "#555");
         ctx.fillStyle = "#fff";
-        ctx.fillText(editBtnText, editBtnX + editBtnWidth / 2, currentY + 11); // Adjusted Y -1px
-        this.editBtnHitbox = { x: editBtnX, y: currentY, w: editBtnWidth, h: 24 };
+        ctx.fillText(editBtnText, editBtnX + editBtnWidth / 2, currentY + 11);
 
-        const buttonsReservedWidth = editBtnWidth + addBtnWidth + 20;
+        // Draw Refresh Button
+        const refreshBtnText = "\u21bb";
+        const refreshBtnWidth = 24;
+        const refreshBtnX = addBtnX - refreshBtnWidth - 10;
 
-        // --- Tags (Flow Layout) ---
+        drawRoundedRect(ctx, refreshBtnX, currentY, refreshBtnWidth, 24, 4, "#555", "#777");
+
+        ctx.save();
+        if (this.isLoading) {
+            const centerX = refreshBtnX + refreshBtnWidth / 2;
+            const centerY = currentY + 12;
+            const angle = (performance.now() / 300) * 2 * Math.PI;
+            ctx.translate(centerX, centerY);
+            ctx.rotate(angle);
+            ctx.fillStyle = "#81C784";
+            ctx.font = "16px sans-serif";
+            ctx.fillText(refreshBtnText, 0, 0);
+            this.node.setDirtyCanvas(true, false);
+        } else {
+            ctx.fillStyle = "#fff";
+            ctx.font = "16px sans-serif";
+            ctx.fillText(refreshBtnText, refreshBtnX + refreshBtnWidth / 2, currentY + 12);
+        }
+        ctx.restore();
+        ctx.font = "12px sans-serif";
+        this.refreshBtnHitbox = { x: refreshBtnX, y: currentY, w: refreshBtnWidth, h: 24 };
+
+        const buttonsReservedWidth = editBtnWidth + addBtnWidth + refreshBtnWidth + 30;
+
+        // --- Tags ---
         let tagX = contentStartX;
         let tagY = currentY;
         const tagHeight = 24;
         const tagGap = 8;
-
         this.tagHitboxes = [];
 
-        this.tags.forEach((tag, index) => {
+        this.tags.forEach((tag) => {
             const textWidth = ctx.measureText(tag).width + 16;
-
-            // Checks if we need to wrap
-            // For first line, respect button space. For subsequent lines, full width.
             const isFirstLine = (tagY === currentY);
-            const visibleWidth = widgetWidth - 20; // total available
-            const usedWidth = tagX - 10; // relative to widget left
             const reserved = isFirstLine ? buttonsReservedWidth : 0;
 
-            // simple check: if current X + width > widget Right Edge - reserved
             if (tagX + textWidth > (10 + contentWidth + 15) - reserved) {
                 tagX = contentStartX;
                 tagY += tagHeight + tagGap;
             }
 
             const isSelected = tag === this.activeTag;
-
-            // Draw Tag
             ctx.fillStyle = isSelected ? "#444" : "#2a2a2a";
-            // if (isSelected) ctx.strokeStyle = "#888"; else ctx.strokeStyle = "#444"; 
-            // Removed stroke or made it subtle if user wishes, but let's keep it clean
             const strokeColor = isSelected ? "#666" : "#383838";
 
             drawRoundedRect(ctx, tagX, tagY, textWidth, tagHeight, 4, isSelected ? "#555" : null, strokeColor);
 
             ctx.fillStyle = isSelected ? "#fff" : "#aaa";
-            // Visual text alignment fix: y + 11 instead of 12 (move up 1px)
             ctx.fillText(tag, tagX + textWidth / 2, tagY + 11);
 
-            this.tagHitboxes.push({
-                x: tagX, y: tagY, w: textWidth, h: tagHeight, tag: tag
-            });
-
+            this.tagHitboxes.push({ x: tagX, y: tagY, w: textWidth, h: tagHeight, tag: tag });
             tagX += textWidth + tagGap;
         });
 
-        // Update currentY to below tags
         currentY = Math.max(tagY + tagHeight + 10, currentY + 35);
 
-        // --- Separator Line ---
+        // --- Separator ---
         ctx.beginPath();
         ctx.moveTo(15, currentY);
         ctx.lineTo(widgetWidth - 15, currentY);
@@ -379,12 +487,12 @@ class SnippetManagerWidget {
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        currentY += 10; // Margin after separator
+        currentY += 10;
 
         // --- Snippets Grid ---
         const filtered = this.getFilteredSnippets();
         let snipX = contentStartX;
-        let snipY = currentY;
+        let snipY = currentY; // No scroll offset!
         const snipH = 28;
         const gap = 8;
 
@@ -393,7 +501,6 @@ class SnippetManagerWidget {
         filtered.forEach(snip => {
             let label = snip.content;
             if (label.length > 20) label = label.substring(0, 18) + "..";
-
             const txtMeasure = ctx.measureText(label);
             const snipW = txtMeasure.width + 20;
 
@@ -402,82 +509,95 @@ class SnippetManagerWidget {
                 snipY += snipH + gap;
             }
 
-            // Draw Snippet Chip
+            // Draw Snippet
             const color = snip.color || "#555";
-
             ctx.fillStyle = color;
             drawRoundedRect(ctx, snipX, snipY, snipW, snipH, 14, color, null);
 
             ctx.fillStyle = "#fff";
-            ctx.fillText(label, snipX + snipW / 2, snipY + 13); // Centered visually
+            ctx.fillText(label, snipX + snipW / 2, snipY + 13);
 
-            // --- Usage Badge Logic ---
+            // Badge
             const textWidget = this.node.widgets.find(w => w.name === "text");
-            if (textWidget && textWidget.value && typeof textWidget.value === "string") {
-                const mainText = textWidget.value;
-                // Count occurrences
-                // Escape special regex chars if we used regex, but split is safer for simple string matching
-                // Note: This counts overlapping occurrences if any (unlikely for phrases)
-                // A simple split by content gives parts. length - 1 is count.
-                if (snip.content) {
-                    const count = mainText.split(snip.content).length - 1;
-                    if (count > 0) {
-                        // Draw Badge
-                        const badgeR = 8;
-                        const badgeX = snipX + snipW - 5; // Top right overlay
-                        const badgeY = snipY + 5;
-
-                        ctx.beginPath();
-                        ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
-                        ctx.fillStyle = "#F44336"; // Red
-                        ctx.fill();
-
-                        ctx.fillStyle = "#fff";
-                        ctx.font = "10px sans-serif"; // Smaller font for badge
-                        ctx.fillText(count.toString(), badgeX, badgeY + 1); // Centered
-
-                        // Restore font
-                        ctx.font = "12px sans-serif";
-                    }
+            if (textWidget && typeof textWidget.value === "string") {
+                const count = textWidget.value.split(snip.content).length - 1;
+                if (count > 0) {
+                    const badgeR = 8;
+                    const badgeX = snipX + snipW - 5;
+                    const badgeY = snipY + 5;
+                    ctx.beginPath();
+                    ctx.arc(badgeX, badgeY, badgeR, 0, Math.PI * 2);
+                    ctx.fillStyle = "#F44336";
+                    ctx.fill();
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText(count.toString(), badgeX, badgeY + 1);
+                    ctx.font = "12px sans-serif";
                 }
             }
 
-            this.snippetHitboxes.push({
-                x: snipX, y: snipY, w: snipW, h: snipH, data: snip
-            });
-
+            this.snippetHitboxes.push({ x: snipX, y: snipY, w: snipW, h: snipH, data: snip });
             snipX += snipW + gap;
         });
 
-        // Tooltip for Truncated Snippets
+        // No Scrollbar drawing needed
+
+        // Tooltip logic needs to use non-scrolled coords logic
+        // But actually the logic inside drawTooltip assumes screen coords? 
+        // The previous logic used this.snippetHitboxes.
+        // Those are now stored in simple widget-relative coords (no scroll).
+        // onMove logic also needs update (remove scroll clip check).
+
         if (this.hoveredSnippet) {
             const box = this.snippetHitboxes.find(b => b.data === this.hoveredSnippet);
-            if (box && box.data.content.length > 20) {
+            if (box) {
+                // Wait check time...
                 const now = performance.now();
-                const elapsed = now - this.hoverStartTime;
-                const DELAY_MS = 600;
-                const FADE_MS = 300;
-
-                if (elapsed >= DELAY_MS) {
-                    let opacity = (elapsed - DELAY_MS) / FADE_MS;
-                    if (opacity > 1) opacity = 1;
-
-                    ctx.save();
-                    ctx.globalAlpha = opacity;
+                if (now - this.hoverStartTime > 600) {
                     this.drawTooltip(ctx, box.data.content, box.x, box.y, box.w, box.h, widgetWidth, y);
-                    ctx.restore();
-
-                    if (opacity < 1) {
-                        this.node.setDirtyCanvas(true, false);
-                    }
                 }
             }
         }
     }
 
     drawTooltip(ctx, text, x, y, w, h, widgetWidth, widgetY) {
-        if (!text) return;
+        // Same implementation as before likely works, 
+        // x,y are relative to widget top? 
+        // No, in draw() usually we draw relative to 0,0 of wrapper? 
+        // Wait, 'y' arg in draw is the vertical offset of the widget within the node.
+        // And we are drawing rects at 'y', 'tagY' (which was currentY)
+        // Wait, my code above uses `currentY = y + 10`. So coordinates are absolute to Node Top (or wherever ctx is).
+        // Yes.
+        super.drawTooltip(ctx, text, x, y, w, h, widgetWidth, widgetY);
+    }
 
+    // We need to keep drawTooltip definition if I didn't verify it was in the snippet I'm replacing...
+    // The previous view_file showed drawTooltip at line 591.
+    // I am replacing up to line 910?
+    // Wait, the ReplacementContent above does NOT include drawTooltip implementation.
+    // I must include it or ensure I don't overwrite it if I'm replacing the whole block.
+    // The 'StartLine' in my tool call needs to be carefully chosen.
+
+    // I will replace from `onWheel` (line 263) down to end of `draw`.
+    // Wait, `draw` ended around line 589. 
+    // `drawTooltip` was 591.
+    // `onClick` was 657.
+    // `onMove` was 736.
+
+    // I need to update `onClick` and `onMove` too because they used scroll/clip logic!
+    // So I should replace the whole class methods.
+
+    // Let's refine the replacement block.
+    // Start: 263 (onWheel)
+    // End: 910 (onCustomWidget define in hooks)
+
+    // This is a huge block.
+
+    // Let's break it down or provide the full class content.
+    // I will provide the methods I am changing.
+
+    drawTooltip(ctx, text, x, y, w, h, widgetWidth, widgetY) {
+        if (!text) return;
         const MAX_WIDTH = 300;
         const LINE_HEIGHT = 16;
         const PADDING = 8;
@@ -488,7 +608,6 @@ class SnippetManagerWidget {
         ctx.textBaseline = "top";
         ctx.textAlign = "left";
 
-        // Word Wrap
         const lines = [];
         let line = "";
         for (const char of text) {
@@ -503,45 +622,35 @@ class SnippetManagerWidget {
         }
         lines.push(line);
 
-        // Compute Dimensions
         let maxW = 0;
         lines.forEach(l => maxW = Math.max(maxW, ctx.measureText(l).width));
         const boxW = maxW + PADDING * 2;
         const boxH = lines.length * LINE_HEIGHT + PADDING * 2;
 
-        // Position (Top Centered)
         let boxX = x + (w / 2) - (boxW / 2);
-        let boxY = y - boxH - 5; // 5px gap
+        let boxY = y - boxH - 5;
 
-        // Clamp Horizontal
         if (boxX < 10) boxX = 10;
         if (boxX + boxW > widgetWidth - 10) boxX = widgetWidth - 10 - boxW;
 
-        // Draw Box
         ctx.shadowColor = "rgba(0,0,0,0.5)";
         ctx.shadowBlur = 8;
         ctx.shadowOffsetX = 2;
         ctx.shadowOffsetY = 2;
-
         ctx.fillStyle = "rgba(30, 30, 30, 0.95)";
         ctx.strokeStyle = "#FFC107";
-
         drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 6, ctx.fillStyle, ctx.strokeStyle);
-
         ctx.shadowColor = "transparent";
-
-        // Draw Text
         ctx.fillStyle = "#fff";
         lines.forEach((l, i) => {
             ctx.fillText(l, boxX + PADDING, boxY + PADDING + i * LINE_HEIGHT);
         });
-
         ctx.restore();
     }
 
-
-    // --- Interaction ---
     onClick(x, y, event) {
+        // Simple hit testing without scroll offset or clipping
+
         // 1. Tags
         for (const box of this.tagHitboxes) {
             if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
@@ -550,41 +659,35 @@ class SnippetManagerWidget {
                 return;
             }
         }
-
-        // 2. Edit Button
+        // 2. Buttons
         const eb = this.editBtnHitbox;
         if (eb && x >= eb.x && x <= eb.x + eb.w && y >= eb.y && y <= eb.y + eb.h) {
             this.editMode = !this.editMode;
             this.node.setDirtyCanvas(true, true);
             return;
         }
-
-        // 3. Add Button
         const ab = this.addBtnHitbox;
         if (ab && x >= ab.x && x <= ab.x + ab.w && y >= ab.y && y <= ab.y + ab.h) {
             this.openAddDialog();
             return;
         }
+        const rb = this.refreshBtnHitbox;
+        if (rb && x >= rb.x && x <= rb.x + rb.w && y >= rb.y && y <= rb.y + rb.h) {
+            this.loadSnippets();
+            return;
+        }
 
-        // 4. Snippets
+        // 3. Snippets
         for (const box of this.snippetHitboxes) {
             if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
                 if (this.editMode) {
-                    // Edit/Delete
                     this.openEditDialog(box.data);
                 } else {
-                    // Smart Toggle Logic
                     const textWidget = this.node.widgets.find(w => w.name === "text");
                     let count = 0;
-                    if (textWidget && textWidget.value && typeof textWidget.value === "string") {
-                        if (box.data.content) {
-                            count = textWidget.value.split(box.data.content).length - 1;
-                        }
+                    if (textWidget && typeof textWidget.value === "string") {
+                        count = textWidget.value.split(box.data.content).length - 1;
                     }
-
-                    // If Shift is pressed -> Always Add
-                    // If Count > 0 and No Shift -> Remove (Undo)
-                    // Else -> Add
                     if (!event.shiftKey && count > 0) {
                         this.removeText(box.data.content);
                     } else {
@@ -594,9 +697,6 @@ class SnippetManagerWidget {
                 return;
             }
         }
-
-        // Clear hovered state if clicked (optional, but good practice)
-        // this.hoveredSnippet = null; 
     }
 
     onMove(x, y) {
@@ -607,30 +707,39 @@ class SnippetManagerWidget {
                 break;
             }
         }
-
-        // Always update hover start time on move to support "stationary" check
-        // Debounce logic: Reset any pending tooltip triggers
         if (this.hoverTimer) {
             clearTimeout(this.hoverTimer);
             this.hoverTimer = null;
         }
-
-        // Update state
         if (this.hoveredSnippet !== hit) {
             this.hoveredSnippet = hit;
-            this.node.setDirtyCanvas(true, false); // Clear old tooltip immediately
+            this.node.setDirtyCanvas(true, false);
         }
-
         if (this.hoveredSnippet) {
             this.hoverStartTime = performance.now();
-
-            // Set timer to check for stationary state
             this.hoverTimer = setTimeout(() => {
-                // If this timer fires, it means no mouse move happened for 600ms
                 this.node.setDirtyCanvas(true, false);
             }, 600);
         }
     }
+
+    openAddDialog() {
+        // ... (Keep existing implementation logic)
+        // Need to re-state it if I'm replacing the whole block, or just don't replace this part.
+        // openAddDialog starts around line 776. 
+        // I can stop replacement before openAddDialog?
+    }
+
+    // Wait, openAddDialog and openEditDialog are after onMove.
+    // I can replace from onWheel (263) to onMove (774).
+    // And also I need to update the node hook at the bottom for onMouseWheel removel.
+
+    // Strategy:
+    // 1. Replace SnippetManagerWidget methods from onWheel to onMove (exclusive of openAddDialog).
+    // 2. Replace the registerExtension block's onNodeCreated to remove hook Wheel and update computeSize.
+
+    // Let's do 1 now.
+
 
     openAddDialog() {
         let initialContent = "";
@@ -741,7 +850,14 @@ app.registerExtension({
                 this.addCustomWidget({
                     name: "snippet_manager_ui",
                     type: "snippet_manager_debug",
-                    computeSize: (width) => [width, 300], // Fixed height for now
+                    // Use dynamic height if available, else default
+                    computeSize: (width) => {
+                        let h = 300;
+                        if (this.snippetManager && this.snippetManager.lastCalculatedHeight) {
+                            h = this.snippetManager.lastCalculatedHeight;
+                        }
+                        return [width, h];
+                    },
                     draw: (ctx, node, width, y, height) => {
                         if (!this.snippetManager) {
                             this.snippetManager = new SnippetManagerWidget(this);
@@ -758,6 +874,17 @@ app.registerExtension({
 
                 // Adjust size
                 this.setSize([500, 450]);
+
+                // Removed Hook Wheel for scrolling since we now auto-expand
+                /*
+                const origOnMouseWheel = this.onMouseWheel;
+                this.onMouseWheel = function (event) {
+                    if (this.snippetManager && this.snippetManager.onWheel(event)) {
+                        return true; // Stop propagation
+                    }
+                    if (origOnMouseWheel) return origOnMouseWheel.apply(this, arguments);
+                };
+                */
 
                 return r;
             };

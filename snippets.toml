@@ -1,21 +1,29 @@
-[[snippets]]
-id = "example-quality-1"
-content = "best quality, masterpiece, 8k, ultra detailed, realistic, photorealistic"
-category = "电商"
-color = "#4CAF50"
-created_at = 1717200000000
+# ==========================================
+# 🍌 Banana Snippets 示例配置 (example)
+# ==========================================
+# 这是一个 TOML 格式的示例文件，演示新建片段的格式。
+# 如需添加自己的提示词，请复制下方示例块并修改字段值。
+#
+# 字段说明:
+# - [[snippets]]: 定义一个新的片段块
+# - id: 唯一标识符 (任意唯一字符串) [必选] (ComfyUI 界面添加时自动生成)
+# - content: 提示词内容 [必选]
+# - category: 分类名称 (例如: "风格", "人物") [可选] (默认: "默认")
+# - color: 显示颜色 (Hex 格式) [可选] (默认: "#ffffff")
+# - created_at: 创建时间 (格式: YYYY-MM-DD HH:MM) [可选] (ComfyUI 界面添加时自动生成)
 
+# 示例 1：质量类片段
 [[snippets]]
-id = "example-style-1"
-content = "cyberpunk style, neon lights, futuristic city, rain, reflection"
-category = "风格"
-color = "#795548"
-created_at = 1717200000003
+id = "example-quality"
+content = "masterpiece, best quality, 8k, ultra-detailed, cinematic lighting"
+category = "Quality"
+color = "#FF9800"
+created_at = "2024-06-01 10:01"
 
+# 示例 2：风格类片段
 [[snippets]]
-id = "example-negative-1"
-content = "保持产品严格的一致性"
-category = "风格"
-color = "#F44336"
-created_at = 1717200000004
-
+id = "example-style"
+content = "cyberpunk city, neon lights, rain, futuristic skyscrapers, reflection"
+category = "Scenery"
+color = "#2196F3"
+created_at = "2024-06-01 10:02"
