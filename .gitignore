@@ -94,3 +94,4 @@ ComfyUI-ModelScope-API/
 config.ini.example
 简化工作流.json
 fix_spec.py
+snippets.toml

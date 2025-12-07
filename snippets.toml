@@ -33,103 +33,102 @@ id = "82c79cc3-cb24-4f10-a74c-69fe0abe6919"
 content = "保持线稿中人物的一致性，帮我上色，生成写实风格"
 category = "心宝预留"
 color = "#F44336"
-created_at = 1765024245009
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "fc4164c4-f346-4b0d-842f-88b3c1c038c9"
 content = "生成四视白底图：正视图，半侧视图，侧视图，背视图，保持人物的特征风格一致性。"
 category = "心宝预留"
 color = "#E91E63"
-created_at = 1765024249912
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "4299425e-7969-4d74-8d1c-5c22050f9763"
 content = "保持人物一致性，人物的五官长相身材服饰不要发生任何变化，设计9种风格各异的姿势，涵盖站立、坐姿、动态动作（如跳跃、挥手）、静态姿态（如托腮、叉腰）等不同类型。"
 category = "心宝预留"
 color = "#9C27B0"
-created_at = 1765024255360
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "e75cae94-ebed-4818-95be-9990b3085aa4"
 content = "从图像中提取主体并创建五分之一比例的3D模型。将模型放在带圆形透明底座的电脑桌上。在模型后面，放一个印有模型图像的玩具盒。这个盒子的包装很有趣。添加一个在背景中显示3D线框模型的计算机屏幕。将整个场景设置在室内。提供明亮、自然的照明。"
 category = "心宝预留"
 color = "#673AB7"
-created_at = 1765024261933
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "96ef1e2f-7481-479b-9c40-e0e0156fb1a6"
 content = "保持人物的一致性，帮我修复图中的老照片，修复破损划痕，并且为照片上色"
 category = "心宝预留"
 color = "#3F51B5"
-created_at = 1765024266724
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "0a29bb75-53ee-4eb3-887c-64b46f60dfd4"
 content = "高清恢复图片，消除像素模糊和色块失真，使插图细节清晰饱满，达到印刷级高清标准，保持图片一致性。图片为手机实拍女生头像。"
 category = "心宝预留"
 color = "#2196F3"
-created_at = 1765024272627
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "66046ee0-dce0-4632-bcdf-5656f21651de"
 content = "保持产品的一致性，还原产品材质，去除瑕疵，精修图中的产品，让产品达到octance渲染出来的完美无瑕的质感"
 category = "心宝预留"
 color = "#009688"
-created_at = 1765024278437
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "5e8c58a7-105b-44ac-a4a4-dd5722651243"
 content = "保持产品的一致性，帮我生成一张海报，根据产品的特征自行绘制出合理的场景，并且添加上标题"
 category = "心宝预留"
 color = "#4CAF50"
-created_at = 1765024284290
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "1e1cfa64-900a-4104-a2a8-259fd253a478"
 content = "文字内容不变，文字排版稍微改动一下，生成一张图片跟原图相似度只有30%的图片"
 category = "心宝预留"
 color = "#FF9800"
-created_at = 1765024290474
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "f86cdd16-182e-41da-b68f-c1111ec6c4ca"
 content = "图片内容不变，帮我生成一张相似度30%的图片"
 category = "单图多图"
 color = "#4CAF50"
-created_at = 1765024487223
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "e33f11f2-e0c0-4e8a-b2c4-c5171db7ef28"
 content = "文字内容不变，文字排版字体重新设计"
 category = "单图多图"
 color = "#4CAF50"
-created_at = 1765024504036
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "8a21684f-3c13-46df-9aea-8bc021e38dd3"
 content = "图1灰色选框的内容替换为图2的"
 category = "局部"
 color = "#2196F3"
-created_at = 1765024521323
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "ee91bb31-87fb-4b59-82d4-25ebfa4f3b68"
 content = "完成后消除灰色选框"
 category = "局部"
 color = "#2196F3"
-created_at = 1765024533256
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "3b431a5f-edfd-4f5a-83d3-fbcfc0f3f852"
 content = "保持图2产品的一致性"
 category = "局部"
 color = "#2196F3"
-created_at = 1765024555558
+created_at = 2024-06-01 10:02
 
 [[snippets]]
 id = "721fcef3-c701-407f-8bca-0fb171e1c1d8"
 content = "产品光影融合与周围的环境气候融合"
 category = "局部"
 color = "#2196F3"
-created_at = 1765025563538
-
+created_at = 2024-06-01 10:02

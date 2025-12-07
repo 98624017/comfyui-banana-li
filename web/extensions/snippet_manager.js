@@ -417,6 +417,7 @@ class SnippetManagerWidget {
         drawRoundedRect(ctx, editBtnX, currentY, editBtnWidth, 24, 4, this.editMode ? "#D84315" : "#333", "#555");
         ctx.fillStyle = "#fff";
         ctx.fillText(editBtnText, editBtnX + editBtnWidth / 2, currentY + 11);
+        this.editBtnHitbox = { x: editBtnX, y: currentY, w: editBtnWidth, h: 24 };
 
         // Draw Refresh Button
         const refreshBtnText = "\u21bb";
