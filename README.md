@@ -13,6 +13,14 @@
 
 </div>
 
+<div align="center">
+
+| **Windows** | **Linux** | **macOS** |
+| :---: | :---: | :---: |
+| [comfyui-banana-li](https://github.com/98624017/comfyui-banana-li) | [comfyui-banana-li-linux](https://github.com/98624017/comfyui-banana-li-linux) | [comfyui-banana-li-mac](https://github.com/98624017/comfyui-banana-li-mac) |
+
+</div>
+
 ## 📖 简介
 
 Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana 的图像生成 API。支持文本到图像、图像到图像等多种生成模式,让你在 ComfyUI 工作流中轻松使用最新的 AI 图像生成技术。
