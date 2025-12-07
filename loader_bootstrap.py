@@ -40,7 +40,7 @@ def get_platform_suffix():
     if system == "windows":
         return "pyd"  # 根据日志，Windows 构建生成的是 .pyd
     elif system == "linux":
-        return "abi3.so"  # Linux 通常使用 abi3.so
+        return "so"  # Linux release assets are named .so
     elif system == "darwin":
         return "darwin.so"  # Mac 使用 .darwin.so
     else:

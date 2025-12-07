@@ -45,7 +45,7 @@ verify_integration.py
 # 项目工具目录
 .serena/
 .spec-workflow/
-openspec/
+
 
 
 # 文档和开发笔记（如果不想公开）
@@ -56,7 +56,7 @@ test_checklist.md
 CLAUDE.md
 # 日志文件
 *.log
-
+openspec/
 # 其他临时文件
 CON
 .pytest_cache/
