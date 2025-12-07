@@ -777,11 +777,9 @@ class SnippetManagerWidget {
                 padding: "5px 15px", borderRadius: "4px", border: "none", backgroundColor: "#D32F2F", color: "#fff", cursor: "pointer", marginRight: "auto"
             });
             delBtn.onclick = async () => {
-                if (confirm("确定删除此片段吗?")) {
-                    await SnippetApi.deleteSnippet(snippet.id);
-                    this.loadSnippets();
-                    MODAL.close();
-                }
+                await SnippetApi.deleteSnippet(snippet.id);
+                this.loadSnippets();
+                MODAL.close();
             };
             btnRow.insertBefore(delBtn, btnRow.firstChild);
         }
