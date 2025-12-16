@@ -1,0 +1,7 @@
+requests>=2.20.0
+opencv-contrib-python>=4.0.0
+scikit-image
+segment-anything
+blend_modes
+timm
+toml; python_version < "3.11"
