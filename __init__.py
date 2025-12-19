@@ -23,7 +23,23 @@ if str(current_dir) not in sys.path:
 # 初始化节点映射字典
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
-__version__ = "V0.09"
+def get_version_from_toml():
+    try:
+        toml_path = current_dir / "pyproject.toml"
+        if not toml_path.exists():
+            return "0.0.0"
+        with open(toml_path, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().startswith("version"):
+                    # quick parse: version = "0.1.3"
+                    parts = line.split("=")
+                    if len(parts) == 2:
+                        return parts[1].strip().strip('"').strip("'")
+    except Exception:
+        pass
+    return "0.0.0"
+
+__version__ = f"V{get_version_from_toml()}"
 
 # 需要跳过的文件列表
 SKIP_FILES = {
