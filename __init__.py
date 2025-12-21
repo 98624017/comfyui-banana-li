@@ -57,6 +57,11 @@ SKIP_FILES = {
     "test_logger.py",
     "test_enhancements.py",
     "verify_integration.py",
+    "image_uploader.py",
+    "banana_kv_auth.py",
+    "banana_binding.py",
+    "stress_test_gemini.py",
+    "test_image_compress.py",
 }
 
 # 显示加载器标题（保留方框，只显示心宝❤Banana Loader）

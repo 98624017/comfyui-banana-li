@@ -4,4 +4,5 @@ scikit-image
 segment-anything
 blend_modes
 timm
+Pillow
 toml; python_version < "3.11"
