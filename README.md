@@ -2,7 +2,7 @@
 
 # 心宝❤Banana - ComfyUI Gemini Image Generator
 
-<img src="https://youke1.picui.cn/s1/2025/11/12/69140968ed33b.jpg" width="200" alt="Banana Logo"/>
+<img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEN7cJpR9uH0NDGIkVVBd9NIaslTheZOwACnh4AAi-0QVbsEPmljBDy7DYE.jpg" width="200" alt="Banana Logo"/>
 
 > 为 ComfyUI 提供 Nano Banana 图像生成能力的自定义节点
 
