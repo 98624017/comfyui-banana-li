@@ -1,0 +1,41 @@
+name: Auto Cleanup Artifacts
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 每天 UTC 0点 (北京时间 8点) 自动执行
+  workflow_dispatch:    # 允许手动在 Actions 页面点击运行
+
+jobs:
+  cleanup:
+    name: Delete All Artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write      # 必须赋予写权限才能删除制品
+      contents: read
+    steps:
+      - name: Delete artifacts using gh-cli
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching artifacts for ${{ github.repository }}..."
+          
+          # 获取所有 artifact IDs (按创建时间倒序排列，新的在前)
+          # 使用 gh api 获取 JSON 并用 jq 解析
+          # .artifacts[] 输出所有对象
+          # sort_by(.created_at) | reverse 按时间倒序
+          # .[20:] 跳过前20个（即保留最新的20个），取剩下的
+          # .id 输出剩下的 ID
+          
+          # 注意：GitHub API 默认分页可能不全，这里简单起见假设前100个里包含我们需要处理的
+          # 如果非常多，建议加上 --paginate
+          
+          gh api "repos/${{ github.repository }}/actions/artifacts" --paginate --method GET -f per_page=100 \
+            --jq '.artifacts | sort_by(.created_at) | reverse | .[3:] | .[].id' | \
+          while read -r artifact_id; do
+            if [ -n "$artifact_id" ]; then
+              echo "Deleting old artifact ID: $artifact_id"
+              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$artifact_id" || true
+            fi
+          done
+          
+          echo "Cleanup complete. Kept the latest 3 artifacts."
