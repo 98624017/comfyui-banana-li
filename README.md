@@ -2,7 +2,7 @@
 
 # 心宝❤Banana - ComfyUI Gemini Image Generator
 
-<img src="https://youke1.picui.cn/s1/2025/11/12/69140968ed33b.jpg" width="200" alt="Banana Logo"/>
+<img src="https://img.131213.xyz/tfile/BQACAgUAAx0Eflp52gABAR3HaUfc50Pq9iF-lJ6ISHuScKWiD-wAArYbAAILXEFWe2NHI8YGLL82BA" width="200" alt="Banana Logo"/>
 
 > 为 ComfyUI 提供 Nano Banana 图像生成能力的自定义节点
 
@@ -91,12 +91,14 @@ cd comfyui-banana-li
 ## 🧩 节点一览
 
 - **心宝❤Banana**：Gemini 生图主节点，支持文本/图像输入、批量、多比例、禁用 SSL（可选）。
+- **心宝❤BananaV2**：新版 Gemini 生图节点（在 Banana 基础上扩展高级能力）。新增 `启用工作流并发` 开关（默认关闭）：开启后同一工作流中多个 BananaV2/视频节点可并发发起 API 调用；并发模式下单节点失败不会终止整图（会阻断该节点输出并在文本端口显示错误）。
 - **心宝❤绑定生成** / **BananaLocalCropPreprocess/Paste** / **SegmentAnythingUltraLi**：绑定上下文与裁剪/分割增强节点，仅在需要绑定链路时接入。
 - **余额扩展**：`web/extensions/token-balance.js` 自动加载，展示可用/已用额度与最近查询时间。
 - **心宝❤魔搭文生图**：`Tongyi-MAI/Z-Image-Turbo`，batch 1-4，支持种子、负面提示词、尺寸/步数/guidance。
 
 - **心宝❤多模态LLM反推**：多图输入（最多 3 张），可选香蕉/魔搭渠道，生成中文描述，支持温度与 max_tokens 设置。
 - **心宝❤提示词助手**：全功能的提示词管理面板，支持自定义标签/颜色、增删改查片段、长文本悬浮预览以及智能的点击交互（点击添加/反选删除/Shift强制追加）。
+- **心宝❤视频生成**：文本/参考图生成视频节点。新增 `启用工作流并发` 开关（默认关闭）：开启后可与其它并发节点同时发起请求；并发模式下单节点失败不会终止整图（会阻断该节点 VIDEO 输出并在文本端口显示错误）。
 
 
 ## 📝 快速上手
@@ -171,6 +173,7 @@ cd comfyui-banana-li
 - 节点未加载：检查依赖安装与 ComfyUI 日志，重启后重试。
 - 请求失败：确认 API Key 正确、网络连通、余额充足；必要时降低 batch 与并发。
 - 生成慢：降低 `batch_size`，调低并发，检查网络延迟。
+- 常见报错速查：见文档 [Gemini_Imagen_Generator 节点常见报错 QA](./.doc/Gemini_Imagen_Generator_QA.md)（支持关键字检索）。
 
 ## 🤝 支持与反馈
 

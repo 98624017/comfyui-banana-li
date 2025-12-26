@@ -2,9 +2,10 @@ import { app } from "/scripts/app.js";
 
 const EXTENSION = "banana.modelscopeChannelSwitch";
 const TARGET_NODE = "XinbaoModelScopeCaption";
-const CHANNEL_BANANA = "香蕉同款渠道";
+const CHANNEL_BANANA = "香蕉同款渠道(旧渠道)";
+const CHANNEL_BANANA_LEGACY = "香蕉同款渠道";
 const CHANNEL_MODAO = "魔搭社区";
-const BANANA_DEFAULT_MODEL = "gemini-2.5-flash-c";
+const BANANA_DEFAULT_MODEL = "gemini-3-flash-c";
 
 const RANKING_URL = "https://lmarena.ai/leaderboard/vision";
 
@@ -21,12 +22,21 @@ function normalizeChannel(value) {
   return value === CHANNEL_MODAO ? CHANNEL_MODAO : CHANNEL_BANANA;
 }
 
+function migrateLegacyChannelValue(node, channelWidget) {
+  if (!channelWidget) return;
+  if (channelWidget.value !== CHANNEL_BANANA_LEGACY) return;
+  channelWidget.value = CHANNEL_BANANA;
+  node?.graph?.setDirtyCanvas(true, true);
+}
+
 function updateModelOptions(node) {
   const channelWidget = findWidget(node, "channel");
   const modelWidget = findWidget(node, "model");
   if (!channelWidget || !modelWidget) {
     return;
   }
+
+  migrateLegacyChannelValue(node, channelWidget);
 
   // Use captured global lists first, fallback to widget options (if any), then empty
   const bananaModels = GLOBAL_BANANA_MODELS.length > 0 ? GLOBAL_BANANA_MODELS : (modelWidget.options?.banana_models || []);
