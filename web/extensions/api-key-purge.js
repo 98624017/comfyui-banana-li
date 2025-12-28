@@ -10,6 +10,7 @@ const CHANNEL_MODAO = "魔搭社区";
 const TARGETS = [
   { className: "BananaImageNode", fields: ["banana_api_key"] },
   { className: "XinbaoVideoGenerator", fields: ["banana_api_key"] },
+  { className: "XinbaoDoubaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoModelScopeImageGenerate", fields: ["modelscope_api_key"] },
   { className: "XinbaoModelScopeImageEdit", fields: ["api_key"] },
   { className: "XinbaoModelScopeCaption", fields: ["banana_api_key", "modelscope_api_key"] },
@@ -323,32 +324,23 @@ function applyBackfillTransient() {
     markDirty(node);
   };
 
-  const bananaNodes = findNodesByClassName("BananaImageNode");
-  bananaNodes.forEach((node) => {
-    if (!isEmptyValue(bananaKey)) {
-      setIfEmpty(node, "banana_api_key", bananaKey);
-    }
-  });
-
-  const bananaVideoNodes = findNodesByClassName("XinbaoVideoGenerator");
-  bananaVideoNodes.forEach((node) => {
-    if (!isEmptyValue(bananaKey)) {
-      setIfEmpty(node, "banana_api_key", bananaKey);
-    }
-  });
-
-  const modaoNodes = findNodesByClassName("XinbaoModelScopeImageGenerate");
-  modaoNodes.forEach((node) => {
-    if (!isEmptyValue(modaoKey)) {
-      setIfEmpty(node, "modelscope_api_key", modaoKey);
-    }
-  });
-
-  const modaoEditNodes = findNodesByClassName("XinbaoModelScopeImageEdit");
-  modaoEditNodes.forEach((node) => {
-    if (!isEmptyValue(modaoKey)) {
-      setIfEmpty(node, "api_key", modaoKey);
-    }
+  TARGETS.filter((target) => target.className !== "XinbaoModelScopeCaption").forEach((target) => {
+    const nodes = findNodesByClassName(target.className);
+    nodes.forEach((node) => {
+      target.fields.forEach((field) => {
+        if (field === "banana_api_key") {
+          if (!isEmptyValue(bananaKey)) {
+            setIfEmpty(node, field, bananaKey);
+          }
+          return;
+        }
+        if (field === "modelscope_api_key" || field === "api_key") {
+          if (!isEmptyValue(modaoKey)) {
+            setIfEmpty(node, field, modaoKey);
+          }
+        }
+      });
+    });
   });
 
   const captionNodes = findNodesByClassName("XinbaoModelScopeCaption");
