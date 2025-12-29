@@ -11,6 +11,7 @@ const TARGETS = [
   { className: "BananaImageNode", fields: ["banana_api_key"] },
   { className: "XinbaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoDoubaoVideoGenerator", fields: ["banana_api_key"] },
+  { className: "XinbaoVeoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoModelScopeImageGenerate", fields: ["modelscope_api_key"] },
   { className: "XinbaoModelScopeImageEdit", fields: ["api_key"] },
   { className: "XinbaoModelScopeCaption", fields: ["banana_api_key", "modelscope_api_key"] },

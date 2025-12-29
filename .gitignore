@@ -96,3 +96,6 @@ config.ini.example
 fix_spec.py
 snippets.toml
 
+
+# Allow specific design doc
+!.doc/视频任务管理系统设计方案.md
