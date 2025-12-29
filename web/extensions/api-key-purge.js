@@ -9,6 +9,7 @@ const CHANNEL_BANANA = "香蕉同款渠道(旧渠道)";
 const CHANNEL_MODAO = "魔搭社区";
 const TARGETS = [
   { className: "BananaImageNode", fields: ["banana_api_key"] },
+  { className: "BananaImageNodeV2", fields: ["banana_api_key"] },
   { className: "XinbaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoDoubaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoVeoVideoGenerator", fields: ["banana_api_key"] },
