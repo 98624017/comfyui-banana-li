@@ -1,0 +1,519 @@
+{
+  "id": "b7fa9d75-1aba-4dfc-83e1-4dace1652b14",
+  "revision": 0,
+  "last_node_id": 224,
+  "last_link_id": 2208,
+  "nodes": [
+    {
+      "id": 215,
+      "type": "BananaLocalCropPaste",
+      "pos": [
+        -4872.331372574114,
+        -1144.6591496233164
+      ],
+      "size": [
+        169.41796875,
+        66
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "banana_image",
+          "type": "IMAGE",
+          "link": 2204
+        },
+        {
+          "name": "region_data",
+          "type": "BANANA_REGION_DATA",
+          "link": 2205
+        },
+        {
+          "name": "binding_context",
+          "type": "BANANA_BINDING",
+          "link": 2199
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            2206
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
+        "Node name for S&R": "BananaLocalCropPaste"
+      }
+    },
+    {
+      "id": 216,
+      "type": "XinbaoApiKeyPurge",
+      "pos": [
+        -5236.374606977081,
+        -737.6744340049473
+      ],
+      "size": [
+        321.892578125,
+        112
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
+        "Node name for S&R": "XinbaoApiKeyPurge"
+      },
+      "widgets_values": [
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 217,
+      "type": "BananaLocalCropPreprocess",
+      "pos": [
+        -5690.547889582429,
+        -1035.9790484300306
+      ],
+      "size": [
+        270,
+        660
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 2200
+        },
+        {
+          "name": "mask",
+          "type": "MASK",
+          "link": 2201
+        },
+        {
+          "name": "ref_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 2208
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image_1",
+          "type": "IMAGE",
+          "links": [
+            2203
+          ]
+        },
+        {
+          "name": "image_2",
+          "type": "IMAGE",
+          "links": null
+        },
+        {
+          "name": "region_data",
+          "type": "BANANA_REGION_DATA",
+          "links": [
+            2205
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
+        "Node name for S&R": "BananaLocalCropPreprocess"
+      },
+      "widgets_values": [
+        4,
+        0.5,
+        0.3,
+        1536,
+        1536,
+        8,
+        "#7f7f7f",
+        "加载预览图",
+        null
+      ]
+    },
+    {
+      "id": 218,
+      "type": "BananaBindingGenerate",
+      "pos": [
+        -5487.6971645386375,
+        -1209.419666315534
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "binding_context",
+          "type": "BANANA_BINDING",
+          "links": [
+            2199,
+            2207
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
+        "Node name for S&R": "BananaBindingGenerate"
+      },
+      "widgets_values": [
+        false
+      ]
+    },
+    {
+      "id": 219,
+      "type": "LoadImage",
+      "pos": [
+        -6067.65187066164,
+        -1071.1966148086249
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2200
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            2201
+          ]
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "LoadImage",
+        "image": "clipspace/clipspace-painted-masked-1766981578049.png [input]"
+      },
+      "widgets_values": [
+        "clipspace/clipspace-painted-masked-1766981578049.png [input]",
+        "image"
+      ]
+    },
+    {
+      "id": 222,
+      "type": "BananaImageNodeV2",
+      "pos": [
+        -5292.293039510955,
+        -993.7124523093788
+      ],
+      "size": [
+        400,
+        784
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 2203
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_5",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "binding_context",
+          "shape": 7,
+          "type": "BANANA_BINDING",
+          "link": 2207
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            2204
+          ]
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
+        "Node name for S&R": "BananaImageNodeV2"
+      },
+      "widgets_values": [
+        "将所有白色衣物保持款式修改为黑色，并去除图片上多余的灰色框",
+        "",
+        "gemini-3-pro-image-preview",
+        1,
+        "Auto",
+        19157,
+        "randomize",
+        0.95,
+        "2K",
+        false,
+        false,
+        "心宝❤测试新渠道（Key不通用）",
+        false,
+        false,
+        "禁用",
+        "暂无余额缓存，请点击“查询余额”按钮刷新",
+        null
+      ]
+    },
+    {
+      "id": 223,
+      "type": "SaveImage",
+      "pos": [
+        -4722.0529633704855,
+        -970.4660257045427
+      ],
+      "size": [
+        270,
+        270
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2206
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 224,
+      "type": "LoadImage",
+      "pos": [
+        -6094.470650774167,
+        -653.9543858723255
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            2208
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {}
+        },
+        "cnr_id": "comfy-core",
+        "ver": "0.6.0",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "11月14日_Lossless.webp",
+        "image"
+      ]
+    }
+  ],
+  "links": [
+    [
+      2199,
+      218,
+      0,
+      215,
+      2,
+      "BANANA_BINDING"
+    ],
+    [
+      2200,
+      219,
+      0,
+      217,
+      0,
+      "IMAGE"
+    ],
+    [
+      2201,
+      219,
+      1,
+      217,
+      1,
+      "MASK"
+    ],
+    [
+      2203,
+      217,
+      0,
+      222,
+      0,
+      "IMAGE"
+    ],
+    [
+      2204,
+      222,
+      0,
+      215,
+      0,
+      "IMAGE"
+    ],
+    [
+      2205,
+      217,
+      2,
+      215,
+      1,
+      "BANANA_REGION_DATA"
+    ],
+    [
+      2206,
+      215,
+      0,
+      223,
+      0,
+      "IMAGE"
+    ],
+    [
+      2207,
+      218,
+      0,
+      222,
+      5,
+      "BANANA_BINDING"
+    ],
+    [
+      2208,
+      224,
+      0,
+      217,
+      2,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.7627768444385503,
+      "offset": [
+        6350.682959040014,
+        1404.6905657385792
+      ]
+    },
+    "frontendVersion": "1.35.9",
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
