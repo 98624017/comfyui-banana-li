@@ -1,6 +1,21 @@
 schema_version = 1
 
 [[tasks]]
+id = "video_3f66a441-8df0-4137-9122-df52d4c6cf99"
+created_at = 1767848412
+provider = "sora"
+model = "sora_video2-landscape"
+route_choice = "心宝❤测试新渠道（Key不通用）"
+base_url = "https://xinbaoapi.dpdns.org"
+prompt = "让这段文字生成一段视频"
+status = "failed"
+api_key_source = "\u8282\u70b9/\u5168\u5c40\u8f93\u5165"
+last_checked_at = 1767848523
+next_poll_at = 1767877264
+progress = 20.00
+error = "You must verify a phone number before continuing."
+
+[[tasks]]
 id = "video_5079bf1d-a4be-41d5-92f3-58f27f5a37ef"
 created_at = 1767586546
 provider = "sora"
@@ -12,4 +27,5 @@ status = "success"
 api_key_source = "\u8282\u70b9/\u5168\u5c40\u8f93\u5165"
 video_url = "https://image-us-plus.oss-us-west-1.aliyuncs.com/sora/d61354d8-de59-488c-b3dd-264dc3908594.mp4"
 last_checked_at = 1767586725
+next_poll_at = 1767877265
 progress = 100.00
