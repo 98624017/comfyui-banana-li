@@ -92,6 +92,7 @@ cd comfyui-banana-li
 
 - **心宝❤Banana**：Gemini 生图主节点，支持文本/图像输入、批量、多比例、禁用 SSL（可选）。
 - **心宝❤BananaV2**：新版 Gemini 生图节点（在 Banana 基础上扩展高级能力）。新增 `启用工作流并发` 开关（默认关闭）：开启后同一工作流中多个 BananaV2/视频节点可并发发起 API 调用；并发模式下单节点失败不会终止整图（会阻断该节点输出并在文本端口显示错误）。
+- **心宝❤批量详情图保存**：批量详情图保存 + 拼接预览面板（提示词编辑/多选局部重试/同位置≤10版本对比/手动保存拼接图）。示例：`example_workflows/心宝一键详情页_批量详情图保存.json`。
 - **心宝❤绑定生成** / **BananaLocalCropPreprocess/Paste** / **SegmentAnythingUltraLi**：绑定上下文与裁剪/分割增强节点，仅在需要绑定链路时接入。
 - **余额扩展**：`web/extensions/token-balance.js` 自动加载，展示可用/已用额度与最近查询时间。
 - **心宝❤魔搭文生图**：`Tongyi-MAI/Z-Image-Turbo`，batch 1-4，支持种子、负面提示词、尺寸/步数/guidance。

@@ -971,9 +971,8 @@ app.registerExtension({
     const SETTING_ID = `${EXTENSION}.enabled`;
 
     // 默认启用
-    if (app.ui.settings.getSettingValue(SETTING_ID) === undefined) {
-      app.ui.settings.setSettingValue(SETTING_ID, true);
-    }
+    // 默认启用
+
 
     app.ui.settings.addSetting({
       id: SETTING_ID,
