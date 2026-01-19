@@ -11,7 +11,7 @@ prompt = "让这段文字生成一段视频"
 status = "failed"
 api_key_source = "\u8282\u70b9/\u5168\u5c40\u8f93\u5165"
 last_checked_at = 1767848523
-next_poll_at = 1767877264
+next_poll_at = 1768194474
 progress = 20.00
 error = "You must verify a phone number before continuing."
 

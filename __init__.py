@@ -62,6 +62,7 @@ SKIP_FILES = {
     "banana_binding.py",
     "stress_test_gemini.py",
     "test_image_compress.py",
+    "xinbao_batch_detail_image_saver.py",  # 暂未上线，屏蔽节点加载
 }
 
 # 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
@@ -92,6 +93,10 @@ for module_name, py_file in all_files.items():
         spec = importlib.util.spec_from_file_location(module_name, py_file)
         if spec and spec.loader:
             module = importlib.util.module_from_spec(spec)
+            # 关键：先注册到 sys.modules，避免 dataclasses 等在装饰阶段
+            # 通过 sys.modules[__module__] 取全局命名空间时拿到 None。
+            # 否则会出现：'NoneType' object has no attribute '__dict__'
+            sys.modules[module_name] = module
             spec.loader.exec_module(module)
     
             # 合并节点映射
@@ -106,6 +111,11 @@ for module_name, py_file in all_files.items():
             logger.warning(f"无法为文件创建 spec: {py_file.name}")
 
     except Exception as e:
+        # 清理失败的半初始化模块，避免后续 import 读到脏状态
+        try:
+            sys.modules.pop(module_name, None)
+        except Exception:
+            pass
         logger.error(f"加载节点文件失败 {py_file.name}: {str(e)}")
 
 # 额外加载子包（如分割节点集合）
