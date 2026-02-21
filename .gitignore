@@ -9,7 +9,9 @@ __pycache__/
 dist/
 build/
 .Python
-
+cf_worker/
+cf_worker - mxj/
+xinbaohuihua/
 # 虚拟环境
 venv/
 ps_plugin/
@@ -99,3 +101,9 @@ snippets.toml
 
 # Allow specific design doc
 !.doc/视频任务管理系统设计方案.md
+cf_workergk/*
+cf_workeryf/*
+
+# cf_workergk 本地实验目录（不纳入主仓库）
+cf_workergk/localai/
+cf_workergk/docs/

@@ -1,0 +1,90 @@
+# 心宝❤AI应用 — 应用配置
+# slot: 对应 INPUT_TYPES 中的泛型插槽名 (image_1, text_1, float_1, bool_1, combo_1 等)
+# node_id / field_name: 直接映射到 API 请求体 nodeInfoList 的 nodeId / fieldName
+# type: image | text | float | boolean | combo
+# field_data: 仅 combo 类型，原样传入 API（可选）
+
+[[apps]]
+id = "gqfd"
+display_name = "高清放大"
+model = "gqfd"
+
+  [[apps.fields]]
+  slot = "image_1"
+  node_id = "308"
+  field_name = "image"
+  type = "image"
+  label = "上传图片"
+  required = true
+
+  [[apps.fields]]
+  slot = "bool_1"
+  node_id = "306"
+  field_name = "value"
+  type = "boolean"
+  label = "开启8K，默认4K"
+  default = false
+
+[[apps]]
+id = "xsxj"
+display_name = "修手修脸"
+model = "xsxj"
+
+  [[apps.fields]]
+  slot = "float_1"
+  node_id = "2242"
+  field_name = "weight"
+  type = "float"
+  label = "降噪值（去Ai给0，修手0.35-0.5）"
+  default = 0.35
+  min = 0.0
+  max = 1.0
+  step = 0.01
+
+  [[apps.fields]]
+  slot = "image_1"
+  node_id = "134"
+  field_name = "image"
+  type = "image"
+  label = "不涂抹遮罩为去Ai感，涂抹则为局部修复"
+  required = true
+
+  [[apps.fields]]
+  slot = "text_1"
+  node_id = "143"
+  field_name = "text"
+  type = "text"
+  label = "中文提示词，如：女生的手"
+  default = ""
+
+  [[apps.fields]]
+  slot = "float_2"
+  node_id = "2169"
+  field_name = "weight"
+  type = "float"
+  label = "皮肤细化（遮罩区不含皮肤，给0）"
+  default = 0.7
+  min = 0.0
+  max = 1.0
+  step = 0.01
+
+[[apps]]
+id = "seedvr2"
+display_name = "seedvr2高清修复"
+model = "seedvr2"
+
+  [[apps.fields]]
+  slot = "image_1"
+  node_id = "22"
+  field_name = "image"
+  type = "image"
+  label = "上传图片"
+  required = true
+
+  [[apps.fields]]
+  slot = "text_1"
+  node_id = "43"
+  field_name = "text"
+  type = "text"
+  label = "修复提示词"
+  default = "高清恢复图片，消除像素模糊和色块失真，使图片细节清晰饱满，达到印刷级高清标准，保持图片一致性。"
