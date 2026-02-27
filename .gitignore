@@ -1,5 +1,6 @@
 # Python 缓存和编译文件
 __pycache__/
+AYFdiy/
 *.py[co]
 !*.pyd
 *$py.class
@@ -107,3 +108,4 @@ cf_workeryf/*
 # cf_workergk 本地实验目录（不纳入主仓库）
 cf_workergk/localai/
 cf_workergk/docs/
+.claude/
