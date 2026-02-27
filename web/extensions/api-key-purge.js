@@ -14,9 +14,16 @@ const TARGETS = [
   { className: "XinbaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoDoubaoVideoGenerator", fields: ["banana_api_key"] },
   { className: "XinbaoVeoVideoGenerator", fields: ["banana_api_key"] },
-  { className: "XinbaoModelScopeImageGenerate", fields: ["modelscope_api_key"] },
+  { className: "XinbaoComfyApiApp", fields: ["banana_api_key"] },
+  {
+    className: "XinbaoModelScopeImageGenerate",
+    fields: ["modelscope_api_key"],
+  },
   { className: "XinbaoModelScopeImageEdit", fields: ["api_key"] },
-  { className: "XinbaoModelScopeCaption", fields: ["banana_api_key", "modelscope_api_key"] },
+  {
+    className: "XinbaoModelScopeCaption",
+    fields: ["banana_api_key", "modelscope_api_key"],
+  },
 ];
 const CLEANER_FIELDS = {
   banana: "banana_global_api_key",
@@ -162,17 +169,21 @@ function clearNodeWidget(node, widgetOrName) {
     // console.log(`[${EXTENSION}] Inspecting widget ${widget.name} on ${node.type}. Value:`, oldValue);
 
     if (!isEmptyValue(oldValue)) {
-      console.log(`[${EXTENSION}] Clearing widget ${widget.name} on node ${node.id} (${node.type})`);
+      console.log(
+        `[${EXTENSION}] Clearing widget ${widget.name} on node ${node.id} (${node.type})`,
+      );
       widget.value = "";
 
       // 关键修复：同时更新 DOM 元素
       if (widget.inputEl) {
         widget.inputEl.value = "";
       }
-      if (widget.domEl) { // 某些自定义 Widget 可能用这个
+      if (widget.domEl) {
+        // 某些自定义 Widget 可能用这个
         widget.domEl.value = "";
       }
-      if (widget.element) { // 某些 LiteGraph Widget
+      if (widget.element) {
+        // 某些 LiteGraph Widget
         widget.element.value = "";
       }
 
@@ -245,9 +256,9 @@ function clearTargets(includeCleaners = true, options = {}) {
 
         // 2. 追踪并清除上游节点 (如 PrimitiveNode)
         const upstreamNodes = findUpstreamNodes(node, field);
-        upstreamNodes.forEach(upstreamNode => {
+        upstreamNodes.forEach((upstreamNode) => {
           if (upstreamNode.widgets) {
-            upstreamNode.widgets.forEach(w => {
+            upstreamNode.widgets.forEach((w) => {
               // 放宽检查：只要是字符串且非空，就尝试清除
               if (typeof w.value === "string" && w.value.trim().length > 0) {
                 if (clearNodeWidget(upstreamNode, w)) {
@@ -293,7 +304,7 @@ function clearTargets(includeCleaners = true, options = {}) {
     console.log(`[${EXTENSION}] No API keys found to purge.`);
     // 只有在手动触发时（includeCleaners=true）才提示未找到
     if (includeCleaners) {
-      // app.ui.dialog.show("未发现可清除的 API Key"); 
+      // app.ui.dialog.show("未发现可清除的 API Key");
     }
   }
 
@@ -327,7 +338,9 @@ function applyBackfillTransient() {
     markDirty(node);
   };
 
-  TARGETS.filter((target) => target.className !== "XinbaoModelScopeCaption").forEach((target) => {
+  TARGETS.filter(
+    (target) => target.className !== "XinbaoModelScopeCaption",
+  ).forEach((target) => {
     const nodes = findNodesByClassName(target.className);
     nodes.forEach((node) => {
       target.fields.forEach((field) => {
@@ -389,7 +402,7 @@ function ensureManualButton(node) {
       ctx.font = font;
       const textWidth = ctx.measureText(text).width;
       const rectWidth = Math.max(textWidth + paddingX * 2, 170);
-      const rectHeight = Math.max((height || 22), 22);
+      const rectHeight = Math.max(height || 22, 22);
       const x = (widgetWidth - rectWidth) / 2;
       const yPos = y + marginTop;
       ctx.fillStyle = active ? "#c0392b" : "#e74c3c";
@@ -410,12 +423,19 @@ function ensureManualButton(node) {
       this.__rect = { x, y: yPos, w: rectWidth, h: rectHeight };
     },
     mouse(event, position) {
-      const trigger = ((globalThis.LiteGraph && globalThis.LiteGraph.pointerevents_method) || "pointer") + "down";
+      const trigger =
+        ((globalThis.LiteGraph && globalThis.LiteGraph.pointerevents_method) ||
+          "pointer") + "down";
       if (event?.type !== trigger) return false;
       const rect = this.__rect;
       if (!rect) return false;
       const [x, y] = position;
-      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+      if (
+        x >= rect.x &&
+        x <= rect.x + rect.w &&
+        y >= rect.y &&
+        y <= rect.y + rect.h
+      ) {
         this.__active = true;
         this.node?.graph?.setDirtyCanvas(true, true);
         setTimeout(() => {
@@ -437,8 +457,12 @@ function ensureManualButton(node) {
   // 尽量把按钮挪到密钥输入后面，便于发现
   if (Array.isArray(node.widgets) && widget) {
     const index = node.widgets.indexOf(widget);
-    const bananaIdx = node.widgets.findIndex((w) => w.name === CLEANER_FIELDS.banana);
-    const modaoIdx = node.widgets.findIndex((w) => w.name === CLEANER_FIELDS.modao);
+    const bananaIdx = node.widgets.findIndex(
+      (w) => w.name === CLEANER_FIELDS.banana,
+    );
+    const modaoIdx = node.widgets.findIndex(
+      (w) => w.name === CLEANER_FIELDS.modao,
+    );
     const targetIdx = Math.max(bananaIdx, modaoIdx);
     if (index > -1 && targetIdx > -1 && index < targetIdx) {
       node.widgets.splice(index, 1);
