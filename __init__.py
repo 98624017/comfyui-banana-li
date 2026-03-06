@@ -1,24 +1,48 @@
-import os
 import sys
 import importlib.util
 from pathlib import Path
 
+# 获取当前文件夹路径
+current_dir = Path(__file__).resolve().parent
+
+# 确保当前目录在 sys.path 中，以便被加载的模块能找到依赖
+if str(current_dir) not in sys.path:
+    sys.path.insert(0, str(current_dir))
+
+
+def _module_namespace() -> str:
+    """生成稳定且合法的模块命名空间，避免路径名/连字符导致相对导入失败。"""
+    sanitized = "".join(ch if ch.isalnum() else "_" for ch in current_dir.name)
+    return f"_banana_loader_{sanitized}"
+
+
+_MODULE_NAMESPACE = _module_namespace()
+
+
+def _load_local_module(module_stem: str):
+    """按文件路径加载当前目录下的本地模块，不依赖包名语义。"""
+    module_path = current_dir / f"{module_stem}.py"
+    spec_name = f"{_MODULE_NAMESPACE}.{module_stem}"
+    spec = importlib.util.spec_from_file_location(spec_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法创建模块加载 spec: {module_stem}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec_name] = module
+    spec.loader.exec_module(module)
+    # 注册公共模块名，确保后续 `import logger` 等导入复用同一模块实例
+    sys.modules.setdefault(module_stem, module)
+    return module
+
+
 # 尝试自动下载二进制文件
 try:
-    from . import loader_bootstrap
+    loader_bootstrap = _load_local_module("loader_bootstrap")
     loader_bootstrap.ensure_binaries()
 except Exception as e:
     print(f"Banana-Li: Failed to bootstrap binaries: {e}")
 
 # 导入新的日志系统
-from .logger import logger
-
-# 获取当前文件夹路径
-current_dir = Path(__file__).parent
-
-# 确保当前目录在 sys.path 中，以便被加载的模块能找到 logger 等依赖
-if str(current_dir) not in sys.path:
-    sys.path.insert(0, str(current_dir))
+logger = _load_local_module("logger").logger
 
 # 初始化节点映射字典
 NODE_CLASS_MAPPINGS = {}
@@ -120,10 +144,10 @@ for module_name, py_file in all_files.items():
 
 # 额外加载子包（如分割节点集合）
 try:
-    from .segment_nodes_li import (
-        NODE_CLASS_MAPPINGS as SEG_NODE_CLASS_MAPPINGS,
-        NODE_DISPLAY_NAME_MAPPINGS as SEG_NODE_DISPLAY_NAME_MAPPINGS,
-    )
+    import segment_nodes_li as _segment_nodes_li
+
+    SEG_NODE_CLASS_MAPPINGS = _segment_nodes_li.NODE_CLASS_MAPPINGS
+    SEG_NODE_DISPLAY_NAME_MAPPINGS = _segment_nodes_li.NODE_DISPLAY_NAME_MAPPINGS
 
     NODE_CLASS_MAPPINGS.update(SEG_NODE_CLASS_MAPPINGS)
     NODE_DISPLAY_NAME_MAPPINGS.update(SEG_NODE_DISPLAY_NAME_MAPPINGS)

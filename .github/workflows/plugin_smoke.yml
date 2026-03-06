@@ -1,0 +1,77 @@
+name: Cross Platform Smoke Test
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "__init__.py"
+      - "tests/**"
+      - ".github/workflows/plugin_smoke.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "__init__.py"
+      - "tests/**"
+      - ".github/workflows/plugin_smoke.yml"
+
+jobs:
+  smoke-import:
+    name: Smoke (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run entrypoint smoke test
+        run: python tests/smoke_entrypoint_import.py
+
+  comfyui-load-custom-node:
+    name: ComfyUI Load Custom Node (macos)
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - name: Checkout plugin repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Clone ComfyUI
+        run: git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "${RUNNER_TEMP}/ComfyUI"
+
+      - name: Install ComfyUI requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r "${RUNNER_TEMP}/ComfyUI/requirements.txt"
+
+      - name: Mount plugin into ComfyUI custom_nodes
+        run: |
+          mkdir -p "${RUNNER_TEMP}/ComfyUI/custom_nodes"
+          ln -s "${GITHUB_WORKSPACE}" "${RUNNER_TEMP}/ComfyUI/custom_nodes/comfyui-banana-li"
+
+      - name: Run ComfyUI load_custom_node test
+        run: |
+          python tests/comfyui_load_custom_node.py \
+            --comfy-root "${RUNNER_TEMP}/ComfyUI" \
+            --plugin-name "comfyui-banana-li"
