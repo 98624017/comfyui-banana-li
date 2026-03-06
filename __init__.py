@@ -10,28 +10,59 @@ if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
 
-def _module_namespace() -> str:
-    """生成稳定且合法的模块命名空间，避免路径名/连字符导致相对导入失败。"""
-    sanitized = "".join(ch if ch.isalnum() else "_" for ch in current_dir.name)
-    return f"_banana_loader_{sanitized}"
+_SUPPORTED_MODULE_SUFFIXES = {".py", ".pyd", ".so"}
 
 
-_MODULE_NAMESPACE = _module_namespace()
+def _module_stem_from_filename(file_name: str) -> str:
+    """提取模块基名，兼容 `module.abi3.so` / `module.cp312-win_amd64.pyd` 等格式。"""
+    return file_name.split(".", 1)[0]
+
+
+def _is_supported_module_file(file_path: Path) -> bool:
+    return file_path.is_file() and file_path.suffix in _SUPPORTED_MODULE_SUFFIXES
+
+
+def _module_file_priority(file_path: Path) -> tuple[int, str]:
+    """源码优先，其次编译产物；同类中优先无标签文件，再按名称稳定排序。"""
+    suffix_priority = {
+        ".py": 0,
+        ".pyd": 1,
+        ".so": 2,
+    }
+    tagged_priority = 1 if len(file_path.suffixes) > 1 else 0
+    return (suffix_priority.get(file_path.suffix, 99), tagged_priority, file_path.name.lower())
+
+
+def _find_local_module_file(module_stem: str) -> Path:
+    matches = []
+    for file_path in current_dir.iterdir():
+        if not _is_supported_module_file(file_path):
+            continue
+        if _module_stem_from_filename(file_path.name) != module_stem:
+            continue
+        matches.append(file_path)
+
+    if not matches:
+        raise FileNotFoundError(f"未找到本地模块文件: {module_stem}")
+
+    return min(matches, key=_module_file_priority)
+
+
+def _load_module_from_file(module_name: str, module_path: Path):
+    """按模块基名加载文件，兼容 ABI 标签编译产物。"""
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"无法创建模块加载 spec: {module_name}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def _load_local_module(module_stem: str):
-    """按文件路径加载当前目录下的本地模块，不依赖包名语义。"""
-    module_path = current_dir / f"{module_stem}.py"
-    spec_name = f"{_MODULE_NAMESPACE}.{module_stem}"
-    spec = importlib.util.spec_from_file_location(spec_name, module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"无法创建模块加载 spec: {module_stem}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec_name] = module
-    spec.loader.exec_module(module)
-    # 注册公共模块名，确保后续 `import logger` 等导入复用同一模块实例
-    sys.modules.setdefault(module_stem, module)
-    return module
+    """按模块基名加载当前目录下的本地模块，不依赖固定扩展名。"""
+    module_path = _find_local_module_file(module_stem)
+    return _load_module_from_file(module_stem, module_path)
 
 
 # 尝试自动下载二进制文件
@@ -65,28 +96,28 @@ def get_version_from_toml():
 
 __version__ = f"V{get_version_from_toml()}"
 
-# 需要跳过的文件列表
-SKIP_FILES = {
-    "__init__.py",
-    "logger.py",
-    "config_manager.py",
-    "api_client.py",
-    "image_codec.py",
-    "balance_service.py",
-    "task_runner.py",
-    "loader_bootstrap.py",
-    "install.py",
-    "check_files.py",
-    "setup.py",
-    "test_logger.py",
-    "test_enhancements.py",
-    "verify_integration.py",
-    "image_uploader.py",
-    "banana_kv_auth.py",
-    "banana_binding.py",
-    "stress_test_gemini.py",
-    "test_image_compress.py",
-    "xinbao_batch_detail_image_saver.py",  # 暂未上线，屏蔽节点加载
+# 需要跳过的模块基名列表
+SKIP_MODULES = {
+    "__init__",
+    "logger",
+    "config_manager",
+    "api_client",
+    "image_codec",
+    "balance_service",
+    "task_runner",
+    "loader_bootstrap",
+    "install",
+    "check_files",
+    "setup",
+    "test_logger",
+    "test_enhancements",
+    "verify_integration",
+    "image_uploader",
+    "banana_kv_auth",
+    "banana_binding",
+    "stress_test_gemini",
+    "test_image_compress",
+    "xinbao_batch_detail_image_saver",  # 暂未上线，屏蔽节点加载
 }
 
 # 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
@@ -95,18 +126,18 @@ logger.info(f"心宝❤Banana version {__version__}")
 
 # 自动查找并加载所有节点文件 (优先加载源码 .py，其次加载编译文件 .pyd/.so)
 # 1. 收集所有可能的模块文件
-all_files = {} # module_name -> file_path
-for pattern in ["*.py", "*.pyd", "*.so"]:
-    for file_path in current_dir.glob(pattern):
-        if file_path.name in SKIP_FILES:
-            continue
-        module_name = file_path.stem
-        # 如果是 .py，优先级最高，直接覆盖
-        if file_path.suffix == ".py":
-            all_files[module_name] = file_path
-        # 如果是编译文件，且字典里还没有（即没有对应的 .py），则添加
-        elif module_name not in all_files:
-            all_files[module_name] = file_path
+all_files = {}  # module_name -> file_path
+for file_path in sorted(current_dir.iterdir(), key=lambda path: path.name.lower()):
+    if not _is_supported_module_file(file_path):
+        continue
+
+    module_name = _module_stem_from_filename(file_path.name)
+    if module_name in SKIP_MODULES:
+        continue
+
+    current_selected = all_files.get(module_name)
+    if current_selected is None or _module_file_priority(file_path) < _module_file_priority(current_selected):
+        all_files[module_name] = file_path
 
 # 2. 加载模块
 for module_name, py_file in all_files.items():
@@ -114,25 +145,16 @@ for module_name, py_file in all_files.items():
         # 动态导入模块
         # module_name = py_file.stem # 已经在上面获取了
         
-        spec = importlib.util.spec_from_file_location(module_name, py_file)
-        if spec and spec.loader:
-            module = importlib.util.module_from_spec(spec)
-            # 关键：先注册到 sys.modules，避免 dataclasses 等在装饰阶段
-            # 通过 sys.modules[__module__] 取全局命名空间时拿到 None。
-            # 否则会出现：'NoneType' object has no attribute '__dict__'
-            sys.modules[module_name] = module
-            spec.loader.exec_module(module)
+        module = _load_module_from_file(module_name, py_file)
     
-            # 合并节点映射
-            if hasattr(module, 'NODE_CLASS_MAPPINGS'):
-                NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
+        # 合并节点映射
+        if hasattr(module, 'NODE_CLASS_MAPPINGS'):
+            NODE_CLASS_MAPPINGS.update(module.NODE_CLASS_MAPPINGS)
     
-            if hasattr(module, 'NODE_DISPLAY_NAME_MAPPINGS'):
-                NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
+        if hasattr(module, 'NODE_DISPLAY_NAME_MAPPINGS'):
+            NODE_DISPLAY_NAME_MAPPINGS.update(module.NODE_DISPLAY_NAME_MAPPINGS)
     
-            logger.success(f"成功加载节点文件: {py_file.name}")
-        else:
-            logger.warning(f"无法为文件创建 spec: {py_file.name}")
+        logger.success(f"成功加载节点文件: {py_file.name}")
 
     except Exception as e:
         # 清理失败的半初始化模块，避免后续 import 读到脏状态
