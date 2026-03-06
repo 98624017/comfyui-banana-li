@@ -41,6 +41,9 @@ jobs:
       - name: Run entrypoint smoke test
         run: python tests/smoke_entrypoint_import.py
 
+      - name: Run tagged-filename release smoke test
+        run: python tests/tagged_filename_entrypoint_import.py
+
   comfyui-load-custom-node:
     name: ComfyUI Load Custom Node (macos)
     runs-on: macos-latest
