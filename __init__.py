@@ -136,8 +136,6 @@ SKIP_MODULES = {
     "balance_service",
     "task_runner",
     "loader_bootstrap",
-    "install",
-    "check_files",
     "setup",
     "test_logger",
     "test_enhancements",
@@ -149,6 +147,10 @@ SKIP_MODULES = {
     "test_image_compress",
     "workflow_parallel",  # 工具模块，非节点；含 async generator 不可编译
     "xinbao_batch_detail_image_saver",  # 暂未上线，屏蔽节点加载
+    # 调试/复现脚本，不应加载
+    "reproduce_issue_ms",
+    "reproduce_toml_issue",
+    "poll_manual",
 }
 
 # 不应被编译的模块（含 generator/async generator），删除旧编译产物防止遮蔽 .py 源码
