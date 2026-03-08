@@ -154,6 +154,39 @@ SKIP_MODULES = {
 logger.header("心宝❤Banana Loader")
 logger.info(f"心宝❤Banana version {__version__}")
 
+def _patch_cython_async_nodes(node_mappings):
+    """修补 Cython Limited API 编译后不被 inspect.iscoroutinefunction 识别的 async 节点。
+
+    Cython Limited API 编译 async def 产生 _cython_*_limitedcoroutine 类型，
+    不具备 CO_COROUTINE 标志，导致 ComfyUI (inspect.iscoroutinefunction) 无法
+    识别为协程函数。用纯 Python async def 包装解决。
+    """
+    import inspect
+    import functools
+
+    patched = 0
+    for cls in node_mappings.values():
+        func_name = getattr(cls, "FUNCTION", None)
+        if not func_name:
+            continue
+        original = getattr(cls, func_name, None)
+        if original is None or inspect.iscoroutinefunction(original):
+            continue
+        # 项目约定：异步节点入口方法名含 "async"
+        if "async" not in func_name.lower():
+            continue
+
+        @functools.wraps(original)
+        async def _async_wrapper(self, *args, _orig=original, **kwargs):
+            return await _orig(self, *args, **kwargs)
+
+        setattr(cls, func_name, _async_wrapper)
+        patched += 1
+
+    if patched > 0:
+        logger.info(f"已修补 {patched} 个 Cython async 节点方法")
+
+
 # 自动查找并加载所有节点文件 (优先加载源码 .py，其次加载编译文件 .pyd/.so)
 # 1. 收集所有可能的模块文件
 all_files = {}  # module_name -> file_path
@@ -206,6 +239,9 @@ try:
     logger.success("成功加载子包: segment_nodes_li")
 except Exception as e:
     logger.error(f"加载子包 segment_nodes_li 失败: {str(e)}")
+
+# 修补 Cython 编译的 async 节点（仅编译部署时生效）
+_patch_cython_async_nodes(NODE_CLASS_MAPPINGS)
 
 # 打印加载的节点信息
 if NODE_CLASS_MAPPINGS:
