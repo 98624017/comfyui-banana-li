@@ -10,6 +10,37 @@ if str(current_dir) not in sys.path:
     sys.path.insert(0, str(current_dir))
 
 
+# macOS: 注册自定义 import finder，让 Python 标准导入机制能识别 .darwin.so 文件
+if sys.platform == "darwin":
+    class _DarwinSoFinder:
+        """macOS 自定义 finder：将 .darwin.so 映射到标准扩展模块加载器。
+
+        Python 标准导入只识别 .so / .cpython-*-darwin.so / .abi3.so，
+        不识别我们自定义的 .darwin.so 后缀。本 finder 作为 fallback
+        挂载到 sys.meta_path 末尾，仅在标准 finder 都找不到时生效。
+        """
+
+        def find_spec(self, fullname, path, target=None):
+            parts = fullname.split(".")
+            module_name = parts[-1]
+
+            if path is not None:
+                search_dirs = [Path(p) for p in path]
+            else:
+                search_dirs = [current_dir]
+
+            for search_dir in search_dirs:
+                candidate = search_dir / f"{module_name}.darwin.so"
+                if candidate.is_file():
+                    return importlib.util.spec_from_file_location(
+                        fullname, str(candidate)
+                    )
+
+            return None
+
+    sys.meta_path.append(_DarwinSoFinder())
+
+
 _SUPPORTED_MODULE_SUFFIXES = {".py", ".pyd", ".so"}
 
 
