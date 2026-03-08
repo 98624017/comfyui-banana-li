@@ -15,16 +15,15 @@ def ensure_binaries():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     system = platform.system().lower()
     
-    # 期望的后缀
+    # 期望的后缀（macOS 和 Linux 统一使用 .so）
     if system == "windows":
         expected_suffix = ".pyd"
+        wrong_suffix = ".so"
         repo_key = "windows"
-    elif system == "linux":
+    elif system in ("linux", "darwin"):
         expected_suffix = ".so"
-        repo_key = "linux"
-    elif system == "darwin":
-        expected_suffix = ".darwin.so"
-        repo_key = "darwin"
+        wrong_suffix = ".pyd"
+        repo_key = system
     else:
         # 其它平台暂不支持检查，直接跳过
         return
@@ -32,25 +31,17 @@ def ensure_binaries():
     # 检查是否存在期望的文件
     has_expected = False
     has_wrong = False
-    wrong_type = []
 
     for root, dirs, files in os.walk(current_dir):
         # 排除部分目录
         if ".git" in root or "__pycache__" in root:
             continue
-            
+
         for file in files:
             if file.endswith(expected_suffix):
                 has_expected = True
-            elif file.endswith(".pyd") and system != "windows":
+            elif file.endswith(wrong_suffix):
                 has_wrong = True
-                if "Windows (.pyd)" not in wrong_type: wrong_type.append("Windows (.pyd)")
-            elif file.endswith(".so") and not file.endswith(".darwin.so") and system == "darwin":
-                 has_wrong = True
-                 if "Linux (.so)" not in wrong_type: wrong_type.append("Linux (.so)")
-            elif file.endswith(".darwin.so") and system != "darwin":
-                 has_wrong = True
-                 if "Mac (.darwin.so)" not in wrong_type: wrong_type.append("Mac (.darwin.so)")
 
         if has_expected:
             break
@@ -61,7 +52,8 @@ def ensure_binaries():
         print("="*60 + "\033[0m")
         
         if has_wrong:
-            print(f" Detected binaries for other platforms: {', '.join(wrong_type)}")
+            wrong_platform = "Linux/macOS (.so)" if system == "windows" else "Windows (.pyd)"
+            print(f" Detected binaries for other platforms: {wrong_platform}")
             print(" You may have cloned the wrong repository for your OS.")
             
         print(f"\n Please use the correct repository for {system}:")
