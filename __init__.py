@@ -72,6 +72,36 @@ try:
 except Exception as e:
     print(f"Banana-Li: Failed to bootstrap binaries: {e}")
 
+
+def _remove_quarantine_on_macos():
+    """macOS: 移除 .so 文件的 com.apple.quarantine 属性，避免 Gatekeeper 拦截。"""
+    import platform
+    if platform.system() != "Darwin":
+        return
+
+    import subprocess
+    so_files = list(current_dir.rglob("*.so"))
+    if not so_files:
+        return
+
+    removed = 0
+    for so_file in so_files:
+        try:
+            result = subprocess.run(
+                ["xattr", "-d", "com.apple.quarantine", str(so_file)],
+                capture_output=True,
+            )
+            if result.returncode == 0:
+                removed += 1
+        except Exception:
+            pass
+
+    if removed > 0:
+        print(f"Banana-Li: Cleared quarantine flag from {removed} .so file(s)")
+
+
+_remove_quarantine_on_macos()
+
 # 导入新的日志系统
 logger = _load_local_module("logger").logger
 
