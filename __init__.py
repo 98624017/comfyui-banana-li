@@ -182,12 +182,14 @@ if _stale_removed > 0:
     logger.info(f"已清理 {_stale_removed} 个不应存在的旧编译产物")
 
 def _patch_cython_async_nodes(node_mappings):
-    """修补 Cython Limited API 编译后不被 inspect.iscoroutinefunction 识别的 async 节点。
+    """用纯 Python async def 包装 Cython 编译的 async 节点方法。
 
-    Cython Limited API 编译 async def 产生 _cython_*_limitedcoroutine 类型，
-    不具备 CO_COROUTINE 标志，导致 ComfyUI (inspect.iscoroutinefunction) 无法
-    识别为协程函数。用纯 Python async def 包装解决。
+    Cython Limited API 编译 async def 产生的协程类型（如 _cython_*_limitedcoroutine /
+    _cython_*_limitednofinalize.coroutine）可能不被 ComfyUI 的 inspect.iscoroutinefunction
+    正确识别，或运行时行为与标准 asyncio 协程不兼容。
+    用纯 Python async def 包装，确保 ComfyUI 始终能正确 await。
     """
+    import types
     import inspect
     import functools
 
@@ -197,10 +199,13 @@ def _patch_cython_async_nodes(node_mappings):
         if not func_name:
             continue
         original = getattr(cls, func_name, None)
-        if original is None or inspect.iscoroutinefunction(original):
+        if original is None:
             continue
         # 项目约定：异步节点入口方法名含 "async"
         if "async" not in func_name.lower():
+            continue
+        # types.FunctionType 仅对纯 Python 函数为 True，Cython 编译产物永远不是
+        if isinstance(original, types.FunctionType) and inspect.iscoroutinefunction(original):
             continue
 
         @functools.wraps(original)
