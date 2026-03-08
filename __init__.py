@@ -147,12 +147,39 @@ SKIP_MODULES = {
     "banana_binding",
     "stress_test_gemini",
     "test_image_compress",
+    "workflow_parallel",  # 工具模块，非节点；含 async generator 不可编译
     "xinbao_batch_detail_image_saver",  # 暂未上线，屏蔽节点加载
 }
+
+# 不应被编译的模块（含 generator/async generator），删除旧编译产物防止遮蔽 .py 源码
+_SOURCE_ONLY_MODULES = {"workflow_parallel", "video_task_manager"}
+
+
+def _cleanup_stale_binaries():
+    """删除不应被编译的模块的旧 .pyd/.so 产物，防止 Python import 优先加载编译版本。"""
+    removed = 0
+    for file_path in current_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix not in (".pyd", ".so"):
+            continue
+        stem = _module_stem_from_filename(file_path.name)
+        if stem in _SOURCE_ONLY_MODULES:
+            try:
+                file_path.unlink()
+                removed += 1
+            except Exception:
+                pass
+    return removed
+
+
+_stale_removed = _cleanup_stale_binaries()
 
 # 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
 logger.header("心宝❤Banana Loader")
 logger.info(f"心宝❤Banana version {__version__}")
+if _stale_removed > 0:
+    logger.info(f"已清理 {_stale_removed} 个不应存在的旧编译产物")
 
 def _patch_cython_async_nodes(node_mappings):
     """修补 Cython Limited API 编译后不被 inspect.iscoroutinefunction 识别的 async 节点。
