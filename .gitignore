@@ -43,6 +43,7 @@ show_*.py                         # 演示脚本
 verify_*.py                       # 验证脚本
 *.bak
 *.tmp
+tmp_api_ref_*.png
 verify_integration.py
 
 # 项目工具目录

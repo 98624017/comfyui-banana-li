@@ -72,6 +72,36 @@ try:
 except Exception as e:
     print(f"Banana-Li: Failed to bootstrap binaries: {e}")
 
+
+def _remove_quarantine_on_macos():
+    """macOS: 移除 .so 文件的 com.apple.quarantine 属性，避免 Gatekeeper 拦截。"""
+    import platform
+    if platform.system() != "Darwin":
+        return
+
+    import subprocess
+    so_files = list(current_dir.rglob("*.so"))
+    if not so_files:
+        return
+
+    removed = 0
+    for so_file in so_files:
+        try:
+            result = subprocess.run(
+                ["xattr", "-d", "com.apple.quarantine", str(so_file)],
+                capture_output=True,
+            )
+            if result.returncode == 0:
+                removed += 1
+        except Exception:
+            pass
+
+    if removed > 0:
+        print(f"Banana-Li: Cleared quarantine flag from {removed} .so file(s)")
+
+
+_remove_quarantine_on_macos()
+
 # 导入新的日志系统
 logger = _load_local_module("logger").logger
 
@@ -106,8 +136,6 @@ SKIP_MODULES = {
     "balance_service",
     "task_runner",
     "loader_bootstrap",
-    "install",
-    "check_files",
     "setup",
     "test_logger",
     "test_enhancements",
@@ -117,12 +145,81 @@ SKIP_MODULES = {
     "banana_binding",
     "stress_test_gemini",
     "test_image_compress",
+    "workflow_parallel",  # 工具模块，非节点；含 async generator 不可编译
     "xinbao_batch_detail_image_saver",  # 暂未上线，屏蔽节点加载
+    # 调试/复现脚本，不应加载
+    "reproduce_issue_ms",
+    "reproduce_toml_issue",
+    "poll_manual",
 }
+
+# 不应被编译的模块（含 generator/async generator），删除旧编译产物防止遮蔽 .py 源码
+_SOURCE_ONLY_MODULES = {"workflow_parallel", "video_task_manager"}
+
+
+def _cleanup_stale_binaries():
+    """删除不应被编译的模块的旧 .pyd/.so 产物，防止 Python import 优先加载编译版本。"""
+    removed = 0
+    for file_path in current_dir.rglob("*"):
+        if not file_path.is_file():
+            continue
+        if file_path.suffix not in (".pyd", ".so"):
+            continue
+        stem = _module_stem_from_filename(file_path.name)
+        if stem in _SOURCE_ONLY_MODULES:
+            try:
+                file_path.unlink()
+                removed += 1
+            except Exception:
+                pass
+    return removed
+
+
+_stale_removed = _cleanup_stale_binaries()
 
 # 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
 logger.header("心宝❤Banana Loader")
 logger.info(f"心宝❤Banana version {__version__}")
+if _stale_removed > 0:
+    logger.info(f"已清理 {_stale_removed} 个不应存在的旧编译产物")
+
+def _patch_cython_async_nodes(node_mappings):
+    """用纯 Python async def 包装 Cython 编译的 async 节点方法。
+
+    Cython Limited API 编译 async def 产生的协程类型（如 _cython_*_limitedcoroutine /
+    _cython_*_limitednofinalize.coroutine）可能不被 ComfyUI 的 inspect.iscoroutinefunction
+    正确识别，或运行时行为与标准 asyncio 协程不兼容。
+    用纯 Python async def 包装，确保 ComfyUI 始终能正确 await。
+    """
+    import types
+    import inspect
+    import functools
+
+    patched = 0
+    for cls in node_mappings.values():
+        func_name = getattr(cls, "FUNCTION", None)
+        if not func_name:
+            continue
+        original = getattr(cls, func_name, None)
+        if original is None:
+            continue
+        # 项目约定：异步节点入口方法名含 "async"
+        if "async" not in func_name.lower():
+            continue
+        # types.FunctionType 仅对纯 Python 函数为 True，Cython 编译产物永远不是
+        if isinstance(original, types.FunctionType) and inspect.iscoroutinefunction(original):
+            continue
+
+        @functools.wraps(original)
+        async def _async_wrapper(self, *args, _orig=original, **kwargs):
+            return await _orig(self, *args, **kwargs)
+
+        setattr(cls, func_name, _async_wrapper)
+        patched += 1
+
+    if patched > 0:
+        logger.info(f"已修补 {patched} 个 Cython async 节点方法")
+
 
 # 自动查找并加载所有节点文件 (优先加载源码 .py，其次加载编译文件 .pyd/.so)
 # 1. 收集所有可能的模块文件
@@ -176,6 +273,9 @@ try:
     logger.success("成功加载子包: segment_nodes_li")
 except Exception as e:
     logger.error(f"加载子包 segment_nodes_li 失败: {str(e)}")
+
+# 修补 Cython 编译的 async 节点（仅编译部署时生效）
+_patch_cython_async_nodes(NODE_CLASS_MAPPINGS)
 
 # 打印加载的节点信息
 if NODE_CLASS_MAPPINGS:
