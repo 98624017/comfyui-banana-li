@@ -5,14 +5,14 @@ on:
   pull_request:
     paths:
       - "__init__.py"
-      - "tests/**"
+      - ".github/scripts/**"
       - ".github/workflows/plugin_smoke.yml"
   push:
     branches:
       - main
     paths:
       - "__init__.py"
-      - "tests/**"
+      - ".github/scripts/**"
       - ".github/workflows/plugin_smoke.yml"
 
 jobs:
@@ -39,10 +39,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Run entrypoint smoke test
-        run: python tests/smoke_entrypoint_import.py
+        run: python .github/scripts/smoke_entrypoint_import.py
 
       - name: Run tagged-filename release smoke test
-        run: python tests/tagged_filename_entrypoint_import.py
+        run: python .github/scripts/tagged_filename_entrypoint_import.py
 
   comfyui-load-custom-node:
     name: ComfyUI Load Custom Node (macos)
@@ -75,6 +75,6 @@ jobs:
 
       - name: Run ComfyUI load_custom_node test
         run: |
-          python tests/comfyui_load_custom_node.py \
+          python .github/scripts/comfyui_load_custom_node.py \
             --comfy-root "${RUNNER_TEMP}/ComfyUI" \
             --plugin-name "comfyui-banana-li"
