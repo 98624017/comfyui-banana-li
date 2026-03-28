@@ -217,7 +217,7 @@ function openPanelForNode(node) {
     },
   }, [
     el("div", { style: { fontSize: "14px", fontWeight: "700" } }, [
-      `心宝❤批量详情图面板（节点 ${nodeId}）`,
+      `香蕉批量详情图面板（节点 ${nodeId}）`,
     ]),
     el("button", {
       innerText: "关闭",

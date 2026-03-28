@@ -20,7 +20,7 @@ Repository = "https://github.com/98624017/comfyui-banana-li"
 "Bug Tracker" = "https://github.com/98624017/comfyui-banana-li/issues"
 
 [tool.comfy]
-PublisherId = "xinbao"
+PublisherId = "banana"
 DisplayName = "Banana Gemini Image Generator"
 Icon = "https://www.yn12377.cn/jubao/upload/smjb/2025/11/19/70477d14a49c48c8a0b8af64a38f3a58.jpg"
 includes = []

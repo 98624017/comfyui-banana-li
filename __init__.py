@@ -177,9 +177,9 @@ def _cleanup_stale_binaries():
 
 _stale_removed = _cleanup_stale_binaries()
 
-# 显示加载器标题（保留方框，只显示心宝❤Banana Loader）
-logger.header("心宝❤Banana Loader")
-logger.info(f"心宝❤Banana version {__version__}")
+# 显示加载器标题（白牌版本）
+logger.header("香蕉 Loader")
+logger.info(f"香蕉 version {__version__}")
 if _stale_removed > 0:
     logger.info(f"已清理 {_stale_removed} 个不应存在的旧编译产物")
 
@@ -282,7 +282,7 @@ if NODE_CLASS_MAPPINGS:
     logger.info(f"总共加载了 {len(NODE_CLASS_MAPPINGS)} 个自定义节点")
     for node_name in NODE_CLASS_MAPPINGS.keys():
         display_name = NODE_DISPLAY_NAME_MAPPINGS.get(node_name, node_name)
-        logger.info(f"   - {display_name} ({node_name})")
+        logger.info(f"   - {display_name}")
 else:
     logger.warning("未找到任何有效的节点")
 

@@ -45,7 +45,7 @@ function installFixOnce() {
     true
   );
 
-  console.log("[Xinbao] File upload fix applied (Monkey Patch Mode).");
+  console.log("[Banana] File upload fix applied (Monkey Patch Mode).");
 }
 
 app.registerExtension({

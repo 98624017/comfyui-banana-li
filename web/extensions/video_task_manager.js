@@ -197,7 +197,7 @@ function ensureOverlay() {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "🎬 心宝❤任务中心";
+  title.textContent = "🎬 香蕉任务中心";
   title.style.cssText = "font-size: 16px; font-weight: 700;";
 
   const headerActions = document.createElement("div");
@@ -845,8 +845,8 @@ function hideOverlay() {
 
 function ensureFloatingButton() {
   const btn = document.createElement("button");
-  btn.textContent = "🎬 心宝❤任务中心";
-  btn.title = "心宝❤任务中心";
+  btn.textContent = "🎬 香蕉任务中心";
+  btn.title = "香蕉任务中心";
   btn.style.cssText = `
     position: fixed;
     right: 18px;
@@ -976,7 +976,7 @@ app.registerExtension({
 
     app.ui.settings.addSetting({
       id: SETTING_ID,
-      name: "🎬 启用心宝❤任务中心",
+      name: "🎬 启用香蕉任务中心",
       type: "boolean",
       defaultValue: true,
       onChange: (value) => {

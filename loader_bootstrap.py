@@ -4,9 +4,9 @@ import platform
 
 # GitHub Repositories
 REPO_URLS = {
-    "windows": "https://github.com/98624017/comfyui-banana-li",
-    "linux": "https://github.com/98624017/comfyui-banana-li-linux",
-    "darwin": "https://github.com/98624017/comfyui-banana-li-mac"
+    "windows": "请联系提供方获取 Windows 版本",
+    "linux": "请联系提供方获取 Linux 版本",
+    "darwin": "请联系提供方获取 macOS 版本"
 }
 
 def _read_repo_platform(current_dir):

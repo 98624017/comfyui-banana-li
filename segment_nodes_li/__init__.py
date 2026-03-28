@@ -10,7 +10,7 @@ NODE_CLASS_MAPPINGS.update(
 
 NODE_DISPLAY_NAME_MAPPINGS.update(
     {
-        "LayerMask: MaskBoundingBoxAligned": "Mask遮罩❤️‍🔥心宝专用",
+        "LayerMask: MaskBoundingBoxAligned": "Mask遮罩❤️‍🔥香蕉专用",
     }
 )
 

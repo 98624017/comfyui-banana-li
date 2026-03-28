@@ -3,12 +3,10 @@ import { api } from "/scripts/api.js";
 
 const EXTENSION = "banana.tokenBalance";
 const TARGET_NODES = new Set(["BananaImageNode", "BananaImageNodeV2"]);
-const WECHAT_ID = "Li_18727107073";
-const QR_IMAGE_URL = new URL("./xinbao.png", import.meta.url).toString();
+const WECHAT_ID = "";
+const QR_IMAGE_URL = "";
 const ACTION_BUTTON_DEFS = [
-  { key: "wechat", label: "兑换积分" },
   { key: "query", label: "查询余额" },
-  { key: "qr", label: "二维码" },
 ];
 const BUTTON_FEEDBACK_MS = 1600;
 const liteGraphGlobal = typeof globalThis !== "undefined" ? globalThis.LiteGraph : undefined;
@@ -52,16 +50,16 @@ function ensureQrOverlay() {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "添加UP主购买Key";
+  title.textContent = "当前版本未提供二维码";
   title.style.fontSize = "16px";
   title.style.fontWeight = "600";
 
   const img = document.createElement("img");
   img.src = QR_IMAGE_URL;
-  img.alt = "UP主二维码";
+  img.alt = "当前版本未提供二维码";
   img.style.cssText = "width: 240px; height: 240px; object-fit: contain; border-radius: 8px; background: #fff; padding: 8px;";
   img.addEventListener("error", () => {
-    img.alt = "二维码加载失败，请手动复制微信号";
+    img.alt = "当前版本未提供二维码";
     img.style.background = "#2b2b2b";
   });
 
@@ -225,10 +223,10 @@ async function copyWechatId(node) {
       document.execCommand("copy");
       document.body.removeChild(textarea);
     }
-    flashActionLabel(node, "wechat", "复制成功");
+    flashActionLabel(node, "query", "已刷新");
   } catch (error) {
-    console.error(`[${EXTENSION}] 微信号复制失败`, error);
-    flashActionLabel(node, "wechat", "复制失败", 2400);
+    console.error(`[${EXTENSION}] 按钮操作失败`, error);
+    flashActionLabel(node, "query", "操作失败", 2400);
   }
 }
 
@@ -252,15 +250,11 @@ function ensureWidgets(node) {
       actionButtons: actionWidget.buttons,
       actionButtonMap: buttonMap,
     };
-    buttonMap.wechat.onClick = () => {
-      window.open("https://buy.xinbaoapi.dpdns.org", "_blank");
-    };
-    buttonMap.query.onClick = () => {
-      void queryBalance(node);
-    };
-    buttonMap.qr.onClick = () => {
-      showQrOverlay();
-    };
+    if (buttonMap.query) {
+      buttonMap.query.onClick = () => {
+        void queryBalance(node);
+      };
+    }
     node.__bananaBalanceWidgets = widgets;
   }
   return node.__bananaBalanceWidgets;
@@ -309,7 +303,7 @@ function getGlobalBananaKey() {
   if (!graph) {
     return "";
   }
-  // 复用“心宝密钥管理”节点的全局密钥，节点留空时也能查询余额
+  // 复用“香蕉密钥管理”节点的全局密钥，节点留空时也能查询余额
   const nodes = graph.findNodesByType?.(CLEANER_CLASS) || graph.nodes || [];
   for (const node of nodes) {
     const widget = node?.widgets?.find?.((w) => w.name === CLEANER_FIELD_BANANA);

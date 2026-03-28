@@ -1,4 +1,4 @@
-# 心宝❤AI应用 — 应用配置
+# 香蕉AI应用 — 应用配置
 # slot: 对应 INPUT_TYPES 中的泛型插槽名 (image_1, text_1, float_1, bool_1, combo_1 等)
 # node_id / field_name: 直接映射到 API 请求体 nodeInfoList 的 nodeId / fieldName
 # type: image | text | float | boolean | combo

@@ -3,7 +3,7 @@ import { app } from "../../../scripts/app.js";
 
 
 /**
- * 心宝❤Banana 菜单置顶增强脚本
+ * 香蕉Banana 菜单置顶增强脚本
  * 
  * 作用：拦截 ComfyUI 的环境菜单（右键菜单、拖拽搜索菜单），
  * 将包含 "❤️‍🔥" 或 "Banana" 的关键词强制排在最前面。
@@ -33,7 +33,7 @@ app.registerExtension({
             if (Array.isArray(values)) {
                 try {
                     // 定义需要置顶的关键词
-                    const priorityKeywords = ["❤️‍🔥", "心宝", "Banana"];
+                    const priorityKeywords = ["❤️‍🔥", "香蕉", "Banana"];
 
                     // 对菜单项进行排序
                     values.sort((a, b) => {

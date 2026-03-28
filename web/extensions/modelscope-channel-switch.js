@@ -44,7 +44,7 @@ function updateModelOptions(node) {
 
   if (bananaModels.length === 0 && modaoModels.length === 0) {
     // If running in an environment where beforeRegisterNodeDef didn't fire or data missing
-    console.warn("Banana-Li: Model lists not found. Ensure XinbaoModelScopeCaption node definition has banana_models/modao_models.");
+    console.warn("Banana-Li: Model lists not found. Ensure 香蕉多模态LLM反推节点定义包含 banana_models/modao_models。");
     // We do NOT return here blindly anymore. If we return, we leave the mixed list.
     // But if we have no data, we can't do anything. 
     // We can try to see if modelWidget has values and guess? No, unsafe.

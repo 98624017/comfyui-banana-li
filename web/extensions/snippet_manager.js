@@ -2,7 +2,7 @@ import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
 const EXTENSION_NAME = "banana.snippetManager";
-const TARGET_NODE = "XinbaoPromptAssistantNode";
+const TARGET_NODE = "BananaPromptAssistantNode";
 const LEGACY_DEFAULT_NODE_SIZE = [500, 450];
 // 让节点默认更“扁长”，减少无意义的纵向空白（用户仍可手动调整并保存）
 const DEFAULT_NODE_SIZE = [760, 300];
