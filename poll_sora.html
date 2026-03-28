@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sora 视频生成手动查询 - 香港专线</title>
+    <style>
+        :root {
+            --bg-color: #0f1115;
+            --card-bg: #1a1d24;
+            --text-primary: #e6e6e6;
+            --text-secondary: #a1a1aa;
+            --accent-color: #6366f1;
+            --accent-hover: #4f46e5;
+            --border-color: #2e323b;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            background-color: var(--card-bg);
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 2rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #272a33;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button:disabled {
+            background-color: #4b5563;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+
+        .log-area {
+            margin-top: 2rem;
+            background-color: #0d0d10;
+            border-radius: 8px;
+            padding: 1rem;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85rem;
+            border: 1px solid var(--border-color);
+            color: #d4d4d8;
+        }
+
+        .log-entry {
+            margin-bottom: 0.4rem;
+            line-height: 1.4;
+        }
+
+        .log-time {
+            color: #52525b;
+            margin-right: 0.5rem;
+        }
+
+        .log-info { color: #60a5fa; }
+        .log-success { color: var(--success-color); }
+        .log-error { color: var(--error-color); }
+        .log-warning { color: #f59e0b; }
+
+        .result-area {
+            margin-top: 1.5rem;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        video {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            background: #000;
+        }
+
+        .download-btn {
+            display: inline-block;
+            padding: 0.6rem 1.2rem;
+            background-color: var(--success-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .download-btn:hover {
+            opacity: 0.9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        
+        .status-processing { background-color: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .status-success { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .status-error { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Sora 任务状态查询</h1>
+        
+        <div class="form-group">
+            <label for="apiKey">API Key (Banana API)</label>
+            <input type="text" id="apiKey" placeholder="输入您的 API Key" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+            <label for="taskId">Task ID (视频任务ID)</label>
+            <input type="text" id="taskId" placeholder="输入任务 ID (例如: video_xxx)">
+        </div>
+
+        <button id="pollBtn" onclick="startPolling()">开始查询</button>
+
+        <div id="resultArea" class="result-area">
+            <span id="statusBadge" class="status-badge status-processing">处理中</span>
+            <div id="videoContainer" style="width: 100%; display: none;">
+                <video id="videoPlayer" controls playsinline></video>
+                <div style="text-align: center;">
+                    <a id="downloadLink" href="#" target="_blank" class="download-btn">⬇️ 下载视频</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-area" id="logArea">
+            <div class="log-entry"><span class="log-time">[系统]</span> 请输入 Task ID 和 API Key 开始查询...</div>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = "https://hk-api.aabao.top";
+        let isPolling = false;
+        let pollIntervalMs = 2000;
+
+        function log(message, type = 'info') {
+            const logArea = document.getElementById('logArea');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            
+            const time = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+            entry.innerHTML = `<span class="log-time">[${time}]</span><span class="log-${type}">${message}</span>`;
+            
+            logArea.append(entry);
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        async function startPolling() {
+            if (isPolling) return;
+
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const taskId = document.getElementById('taskId').value.trim();
+
+            if (!apiKey) {
+                log("API Key 不能为空", "error");
+                return;
+            }
+            if (!taskId) {
+                log("Task ID 不能为空", "error");
+                return;
+            }
+
+            const btn = document.getElementById('pollBtn');
+            const resultArea = document.getElementById('resultArea');
+            const videoContainer = document.getElementById('videoContainer');
+            
+            isPolling = true;
+            btn.disabled = true;
+            btn.innerText = "正在查询...";
+            resultArea.style.display = 'flex';
+            videoContainer.style.display = 'none';
+            document.getElementById('statusBadge').className = 'status-badge status-processing';
+            document.getElementById('statusBadge').innerText = '连接中...';
+
+            log(`开始查询任务: ${taskId}`, "info");
+
+            try {
+                await pollLoop(taskId, apiKey);
+            } catch (error) {
+                log(`查询出错: ${error.message}`, "error");
+                document.getElementById('statusBadge').className = 'status-badge status-error';
+                document.getElementById('statusBadge').innerText = '查询失败';
+            } finally {
+                isPolling = false;
+                btn.disabled = false;
+                btn.innerText = "开始查询";
+            }
+        }
+
+        async function pollLoop(taskId, apiKey) {
+            const maxErrors = 5;
+            let errorCount = 0;
+
+            while (isPolling) {
+                try {
+                    const statusData = await fetchStatus(taskId, apiKey);
+                    const status = (statusData.status || "unknown").toLowerCase();
+                    const progress = statusData.progress;
+                    
+                    // Update Status Interface
+                    const badge = document.getElementById('statusBadge');
+                    
+                    if (status === 'queued' || status === 'pending') {
+                        badge.innerText = '排队中';
+                        log(`任务排队中...`, "warning");
+                    } 
+                    else if (['processing', 'in_progress', 'running'].includes(status)) {
+                        badge.innerText = `生成中 ${progress ? progress + '%' : ''}`;
+                        log(`正在生成... 进度: ${progress !== undefined ? progress : '?'}%`, "info");
+                    }
+                    else if (status === 'completed') {
+                        badge.className = 'status-badge status-success';
+                        badge.innerText = '已完成';
+                        log("任务已完成！", "success");
+                        handleSuccess(statusData);
+                        return; // Stop polling
+                    }
+                    else if (['failed', 'error', 'canceled', 'cancelled'].includes(status)) {
+                        badge.className = 'status-badge status-error';
+                        badge.innerText = '失败';
+                        const errMsg = extractError(statusData);
+                        log(`任务失败: ${errMsg}`, "error");
+                        return; // Stop polling
+                    }
+                    else {
+                        log(`未知状态: ${status}`, "warning");
+                    }
+
+                    // Reset error count on success
+                    errorCount = 0;
+
+                } catch (e) {
+                    errorCount++;
+                    log(`连接错误 (${errorCount}/${maxErrors}): ${e.message}`, "error");
+                    if (errorCount >= maxErrors) {
+                        throw new Error("连续多次连接失败，已停止查询");
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 5000)); // Poll every 5s
+            }
+        }
+
+        async function fetchStatus(taskId, apiKey) {
+            const url = `${BASE_URL}/v1/videos/${taskId}`;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                const text = await response.text();
+                let detail = text.substring(0, 100);
+                try {
+                    const json = JSON.parse(text);
+                    if (json.error && json.error.message) detail = json.error.message;
+                } catch(e) {}
+                
+                if (response.status === 401) {
+                    throw new Error("API Key 无效或已过期");
+                }
+                throw new Error(`HTTP ${response.status}: ${detail}`);
+            }
+
+            return await response.json();
+        }
+
+        function extractError(data) {
+             if (data.error) {
+                 if (typeof data.error === 'string') return data.error;
+                 if (data.error.message) return data.error.message;
+                 return JSON.stringify(data.error);
+             }
+             return "未知错误";
+        }
+
+        function handleSuccess(data) {
+            let videoUrl = null;
+            
+            // Try extracting from video_url (OpenAI style)
+            if (data.video_url) videoUrl = data.video_url;
+            // Try extracting from data.video_url (some internal apis)
+            else if (data.data && data.data.video_url) videoUrl = data.data.video_url;
+
+            if (videoUrl) {
+                log(`获取到视频链接: ${videoUrl}`, "success");
+                
+                const videoContainer = document.getElementById('videoContainer');
+                const videoPlayer = document.getElementById('videoPlayer');
+                const downloadLink = document.getElementById('downloadLink');
+
+                videoPlayer.src = videoUrl;
+                downloadLink.href = videoUrl;
+                
+                videoContainer.style.display = 'block';
+            } else {
+                log("任务完成但未找到 video_url 字段，可能需要进一步通过 content 接口获取（本页面暂仅支持直接 status 获取）", "warning");
+            }
+        }
+    </script>
+</body>
+</html>
