@@ -1,0 +1,1799 @@
+{
+  "id": "fb04fad7-d03e-4afb-9425-0c8520afae9e",
+  "revision": 0,
+  "last_node_id": 159,
+  "last_link_id": 218,
+  "nodes": [
+    {
+      "id": 96,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -978.932909355399,
+        1196.7870559722917
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            106
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "⛔_点击这里清空图片_⛔.png",
+        "image"
+      ]
+    },
+    {
+      "id": 97,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -674.7810441126063,
+        1200.7200542297417
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            107
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "⛔_点击这里清空图片_⛔.png",
+        "image"
+      ]
+    },
+    {
+      "id": 98,
+      "type": "XinbaoSmartGrid",
+      "pos": [
+        -356.31154445337216,
+        845.2872405874335
+      ],
+      "size": [
+        140,
+        86
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 104
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 105
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 106
+        },
+        {
+          "name": "image_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 107
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            108
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoSmartGrid",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 93,
+      "type": "XinbaoSmartGrid",
+      "pos": [
+        -363.39256961255234,
+        -63.000713822345745
+      ],
+      "size": [
+        140,
+        86
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 98
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 99
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 100
+        },
+        {
+          "name": "image_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 112
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            102
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoSmartGrid",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 30,
+      "type": "ConstrainImage|pysssss",
+      "pos": [
+        -349.3271438870531,
+        993.8062533072738
+      ],
+      "size": [
+        270,
+        154
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "图像",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 108
+        },
+        {
+          "label": "最大宽度",
+          "name": "max_width",
+          "type": "INT",
+          "widget": {
+            "name": "max_width"
+          },
+          "link": null
+        },
+        {
+          "label": "最大高度",
+          "name": "max_height",
+          "type": "INT",
+          "widget": {
+            "name": "max_height"
+          },
+          "link": null
+        },
+        {
+          "label": "最小宽度",
+          "name": "min_width",
+          "type": "INT",
+          "widget": {
+            "name": "min_width"
+          },
+          "link": null
+        },
+        {
+          "label": "最小高度",
+          "name": "min_height",
+          "type": "INT",
+          "widget": {
+            "name": "min_height"
+          },
+          "link": null
+        },
+        {
+          "label": "裁剪",
+          "name": "crop_if_required",
+          "type": "COMBO",
+          "widget": {
+            "name": "crop_if_required"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "图像",
+          "name": "IMAGE",
+          "shape": 6,
+          "type": "IMAGE",
+          "links": [
+            201,
+            214
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "aac13aa7ce35b07d43633c3bbe654a38c00d74f5",
+        "Node name for S&R": "ConstrainImage|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "max_width": true,
+            "max_height": true,
+            "min_width": true,
+            "min_height": true,
+            "crop_if_required": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        2048,
+        2048,
+        0,
+        0,
+        "no"
+      ]
+    },
+    {
+      "id": 134,
+      "type": "SaveImage",
+      "pos": [
+        2181.9385328627263,
+        779.3538034067105
+      ],
+      "size": [
+        344.3207101901826,
+        529.6747705440116
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 24,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 218
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "filename_prefix": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 100,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -668.732758365807,
+        284.9485433817019
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            112
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "⛔_点击这里清空图片_⛔.png",
+        "image"
+      ]
+    },
+    {
+      "id": 90,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -672.6657566232569,
+        -78.06971193990738
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            99
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "⛔_点击这里清空图片_⛔.png",
+        "image"
+      ]
+    },
+    {
+      "id": 91,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -972.8846236085997,
+        286.3881265837833
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            100
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "⛔_点击这里清空图片_⛔.png",
+        "image"
+      ]
+    },
+    {
+      "id": 70,
+      "type": "XinbaoVerticalStitch",
+      "pos": [
+        1868.8921934801522,
+        763.1426995629172
+      ],
+      "size": [
+        278.82776605947026,
+        26
+      ],
+      "flags": {},
+      "order": 23,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 217
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            182
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoVerticalStitch",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 89,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -971.1908123590579,
+        -75.77677395581385
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            98
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "任务 1（编辑）.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 94,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -995.2693150423579,
+        806.8761998276428
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            104
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "pasted/image.png",
+        "image"
+      ]
+    },
+    {
+      "id": 95,
+      "type": "XinbaoLoadImageClean",
+      "pos": [
+        -691.4645821257126,
+        805.1830065053649
+      ],
+      "size": [
+        270,
+        314
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            105
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "XinbaoLoadImageClean",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "image": true,
+            "upload": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "pasted/image (1).png",
+        "image"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "ConstrainImage|pysssss",
+      "pos": [
+        -383.0060993780127,
+        91.67527423924017
+      ],
+      "size": [
+        270,
+        154
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "图像",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 102
+        },
+        {
+          "label": "最大宽度",
+          "name": "max_width",
+          "type": "INT",
+          "widget": {
+            "name": "max_width"
+          },
+          "link": null
+        },
+        {
+          "label": "最大高度",
+          "name": "max_height",
+          "type": "INT",
+          "widget": {
+            "name": "max_height"
+          },
+          "link": null
+        },
+        {
+          "label": "最小宽度",
+          "name": "min_width",
+          "type": "INT",
+          "widget": {
+            "name": "min_width"
+          },
+          "link": null
+        },
+        {
+          "label": "最小高度",
+          "name": "min_height",
+          "type": "INT",
+          "widget": {
+            "name": "min_height"
+          },
+          "link": null
+        },
+        {
+          "label": "裁剪",
+          "name": "crop_if_required",
+          "type": "COMBO",
+          "widget": {
+            "name": "crop_if_required"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "图像",
+          "name": "IMAGE",
+          "shape": 6,
+          "type": "IMAGE",
+          "links": [
+            200,
+            213
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "aac13aa7ce35b07d43633c3bbe654a38c00d74f5",
+        "Node name for S&R": "ConstrainImage|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "max_width": true,
+            "max_height": true,
+            "min_width": true,
+            "min_height": true,
+            "crop_if_required": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        2048,
+        2048,
+        0,
+        0,
+        "no"
+      ]
+    },
+    {
+      "id": 155,
+      "type": "TextToLowercase",
+      "pos": [
+        131.34182950233003,
+        766.5177793872178
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "texts",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.14.0",
+        "Node name for S&R": "TextToLowercase"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 87,
+      "type": "CR Text",
+      "pos": [
+        522.7194445129463,
+        448.95052598117974
+      ],
+      "size": [
+        235.71445123747412,
+        108
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "文本",
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 135
+        }
+      ],
+      "outputs": [
+        {
+          "label": "文本",
+          "name": "text",
+          "type": "*",
+          "links": [
+            216
+          ]
+        },
+        {
+          "label": "显示帮助",
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "text": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 137,
+      "type": "SaveImage",
+      "pos": [
+        2442.535221758509,
+        -149.62185778476686
+      ],
+      "size": [
+        296.6666666666124,
+        1154.8888888883407
+      ],
+      "flags": {},
+      "order": 25,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 182
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "filename_prefix": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 31,
+      "type": "Text Concatenate",
+      "pos": [
+        1425.2679737500735,
+        -65.06173722609448
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 21,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "文本_A",
+          "name": "text_a",
+          "shape": 7,
+          "type": "STRING",
+          "link": 199
+        },
+        {
+          "label": "文本_B",
+          "name": "text_b",
+          "shape": 7,
+          "type": "STRING",
+          "link": 162
+        },
+        {
+          "label": "文本_C",
+          "name": "text_c",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "label": "文本_d",
+          "name": "text_d",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "字符串",
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            215
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "pr-was-node-suite-comfyui-47064894",
+        "ver": "ea935d1044ae5a26efa54ebeb18fe9020af49a45",
+        "Node name for S&R": "Text Concatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "delimiter": true,
+            "clean_whitespace": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        ", ",
+        "true"
+      ]
+    },
+    {
+      "id": 151,
+      "type": "XinbaoTextSplitter",
+      "pos": [
+        815.2340033701736,
+        -75.47961352731498
+      ],
+      "size": [
+        540.3547158848405,
+        1095.2819337930578
+      ],
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 204
+        }
+      ],
+      "outputs": [
+        {
+          "name": "提示词批次",
+          "shape": 6,
+          "type": "STRING",
+          "links": [
+            199
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-li",
+        "ver": "2b98cc8b9f448f98d9d8bd68ef299c7b8c868c47",
+        "Node name for S&R": "XinbaoTextSplitter",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "text": true,
+            "移除空行": true,
+            "修剪首尾空白": true,
+            "暂停等待": true,
+            "等待秒数": true,
+            "分割上限": true
+          },
+          "version": "7.0.1"
+        }
+      },
+      "widgets_values": [
+        "",
+        true,
+        true,
+        true,
+        60,
+        16,
+        null,
+        null
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 159,
+      "type": "BananaImageNodeV2",
+      "pos": [
+        1836.4007355516148,
+        -88.40877436984275
+      ],
+      "size": [
+        400,
+        576
+      ],
+      "flags": {},
+      "order": 22,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 213
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 214
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image_5",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "binding_context",
+          "shape": 7,
+          "type": "BANANA_BINDING",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 215
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "COMBO",
+          "widget": {
+            "name": "aspect_ratio"
+          },
+          "link": 216
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            217,
+            218
+          ]
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "failed_urls",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "df34c7c92cf6cf593e7e0bd7c02edd4bf62a3872",
+        "Node name for S&R": "BananaImageNodeV2"
+      },
+      "widgets_values": [
+        "Peace and love",
+        "",
+        "gemini-3-pro-image-preview-svip",
+        1,
+        "Auto",
+        25313,
+        "randomize",
+        0.95,
+        "2K",
+        false,
+        false,
+        "心宝❤新渠道",
+        false,
+        false,
+        "禁用",
+        "暂无余额缓存，请点击“查询余额”按钮刷新",
+        null
+      ]
+    },
+    {
+      "id": 51,
+      "type": "XinbaoApiKeyPurge",
+      "pos": [
+        -145.26086329637621,
+        -410.89468089446734
+      ],
+      "size": [
+        324.3957086825517,
+        120
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-li",
+        "ver": "354a94183f5abbd6aea31990a5e5a5bf56e3bd40",
+        "Node name for S&R": "XinbaoApiKeyPurge",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "banana_global_api_key": true,
+            "modelscope_global_api_key": true
+          },
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "sk-Z2DG593m92QbQU4XOjXXMlPSR1OQ3D4qT2cpd7Fb61WEDhmU",
+        ""
+      ]
+    },
+    {
+      "id": 152,
+      "type": "XinbaoModelScopeCaption",
+      "pos": [
+        453.9950528965119,
+        -58.51746808178598
+      ],
+      "size": [
+        237.65143150255426,
+        422
+      ],
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 200
+        },
+        {
+          "name": "image_2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 201
+        },
+        {
+          "name": "image_3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "user_prompt",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "user_prompt"
+          },
+          "link": 202
+        },
+        {
+          "name": "model",
+          "shape": 7,
+          "type": "COMBO",
+          "widget": {
+            "name": "model"
+          },
+          "link": 212
+        }
+      ],
+      "outputs": [
+        {
+          "name": "description",
+          "type": "STRING",
+          "links": [
+            204
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "a3bc014940ff72d96b0620bad77a578a06853368",
+        "Node name for S&R": "XinbaoModelScopeCaption"
+      },
+      "widgets_values": [
+        "心宝❤新渠道",
+        "",
+        "",
+        "",
+        "详细描述图片中的主体、背景和风格",
+        "打开",
+        "gemini-3-flash-c",
+        8192,
+        0.7,
+        1799903478,
+        "randomize",
+        false
+      ]
+    },
+    {
+      "id": 156,
+      "type": "WriteToTxtFile",
+      "pos": [
+        -35.63086079979427,
+        430.5418868230707
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "any",
+          "shape": 7,
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_StringOps",
+        "ver": "d683188ef829c14be8f1a05385345583bd82ee50",
+        "Node name for S&R": "WriteToTxtFile"
+      },
+      "widgets_values": [
+        "",
+        "path/to/your/file.txt"
+      ]
+    },
+    {
+      "id": 158,
+      "type": "CR Text",
+      "pos": [
+        22.90345716442512,
+        275.29066737597043
+      ],
+      "size": [
+        276.2775958320709,
+        108
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "*",
+          "links": []
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text"
+      },
+      "widgets_values": [
+        "test-json"
+      ]
+    },
+    {
+      "id": 60,
+      "type": "ShowText|pysssss",
+      "pos": [
+        391.30746520052804,
+        -338.2310056843153
+      ],
+      "size": [
+        325.8579460687141,
+        138.86881867928793
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "文本",
+          "name": "text",
+          "type": "STRING",
+          "link": 139
+        }
+      ],
+      "outputs": [
+        {
+          "label": "字符串",
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": [
+            202
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "aac13aa7ce35b07d43633c3bbe654a38c00d74f5",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "version": "7.0.1",
+          "input_ue_unconnectable": {}
+        }
+      },
+      "widgets_values": [
+        "图1是我的产品的不同角度的图，图2是我需要指定的配色风格以及字体\n帮我设计一个图1的【玩偶】的提示词\n生成【8】张图片，输出【英文】，用途【亚马逊详情json】，比例【21:9】\n【特殊特征】\n【卖点】"
+      ]
+    },
+    {
+      "id": 115,
+      "type": "TextAssembler",
+      "pos": [
+        -40.304871167242,
+        -99.58485521643749
+      ],
+      "size": [
+        298.53242279391463,
+        322
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "user_prompt",
+          "type": "STRING",
+          "links": [
+            139
+          ]
+        },
+        {
+          "name": "aspect_ratio",
+          "type": "STRING",
+          "links": [
+            135
+          ]
+        },
+        {
+          "name": "model_id",
+          "type": "*",
+          "links": [
+            212
+          ]
+        },
+        {
+          "name": "追加提示词",
+          "type": "STRING",
+          "links": [
+            162
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-banana-gemini",
+        "ver": "1d1b05cfa8597f9f4e8022cc7e9bc3b74ff699a1",
+        "Node name for S&R": "TextAssembler",
+        "aux_id": "98624017/comfyui-banana-li",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "玩偶",
+        "英文",
+        8,
+        "亚马逊详情json",
+        "21:9",
+        "",
+        ""
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    }
+  ],
+  "links": [
+    [
+      98,
+      89,
+      0,
+      93,
+      0,
+      "IMAGE"
+    ],
+    [
+      99,
+      90,
+      0,
+      93,
+      1,
+      "IMAGE"
+    ],
+    [
+      100,
+      91,
+      0,
+      93,
+      2,
+      "IMAGE"
+    ],
+    [
+      102,
+      93,
+      0,
+      21,
+      0,
+      "IMAGE"
+    ],
+    [
+      104,
+      94,
+      0,
+      98,
+      0,
+      "IMAGE"
+    ],
+    [
+      105,
+      95,
+      0,
+      98,
+      1,
+      "IMAGE"
+    ],
+    [
+      106,
+      96,
+      0,
+      98,
+      2,
+      "IMAGE"
+    ],
+    [
+      107,
+      97,
+      0,
+      98,
+      3,
+      "IMAGE"
+    ],
+    [
+      108,
+      98,
+      0,
+      30,
+      0,
+      "IMAGE"
+    ],
+    [
+      112,
+      100,
+      0,
+      93,
+      3,
+      "IMAGE"
+    ],
+    [
+      135,
+      115,
+      1,
+      87,
+      0,
+      "STRING"
+    ],
+    [
+      139,
+      115,
+      0,
+      60,
+      0,
+      "STRING"
+    ],
+    [
+      162,
+      115,
+      3,
+      31,
+      1,
+      "STRING"
+    ],
+    [
+      182,
+      70,
+      0,
+      137,
+      0,
+      "IMAGE"
+    ],
+    [
+      199,
+      151,
+      0,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      200,
+      21,
+      0,
+      152,
+      0,
+      "IMAGE"
+    ],
+    [
+      201,
+      30,
+      0,
+      152,
+      1,
+      "IMAGE"
+    ],
+    [
+      202,
+      60,
+      0,
+      152,
+      3,
+      "STRING"
+    ],
+    [
+      204,
+      152,
+      0,
+      151,
+      0,
+      "STRING"
+    ],
+    [
+      212,
+      115,
+      2,
+      152,
+      4,
+      "COMBO"
+    ],
+    [
+      213,
+      21,
+      0,
+      159,
+      0,
+      "IMAGE"
+    ],
+    [
+      214,
+      30,
+      0,
+      159,
+      1,
+      "IMAGE"
+    ],
+    [
+      215,
+      31,
+      0,
+      159,
+      6,
+      "STRING"
+    ],
+    [
+      216,
+      87,
+      0,
+      159,
+      7,
+      "COMBO"
+    ],
+    [
+      217,
+      159,
+      0,
+      70,
+      0,
+      "IMAGE"
+    ],
+    [
+      218,
+      159,
+      0,
+      134,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "产品，可使用1，2，4张",
+      "bounding": [
+        -1009.5891777036372,
+        -188.73390557794434,
+        843.6360335740575,
+        851.2520818051815
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 4,
+      "title": "生图",
+      "bounding": [
+        363.5793947328762,
+        -186.04575986462396,
+        2037.493672567856,
+        1035.2402403436727
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 6,
+      "title": "填写Key，Key获取联系v：Li_18727107073，低价稳定",
+      "bounding": [
+        -284.1432152755174,
+        -512.8855845761711,
+        604.8484471027168,
+        264.78203828440303
+      ],
+      "color": "#88A",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 7,
+      "title": "视频教程：https://www.bilibili.com/video/BV16QiQBKEyX/",
+      "bounding": [
+        -554.7801439574196,
+        -669.3366679766957,
+        1583.6965598705985,
+        80
+      ],
+      "color": "#3f789e",
+      "font_size": 60,
+      "flags": {}
+    },
+    {
+      "id": 8,
+      "title": "参考图截图",
+      "bounding": [
+        -1010.2448378363672,
+        719.2382136655838,
+        843.6360335740575,
+        851.2520818051815
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 9,
+      "title": "详情页生成选项",
+      "bounding": [
+        -138.08817805311244,
+        -179.37423606585745,
+        448.50080864226254,
+        848.3678830830517
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.34522712143931616,
+      "offset": [
+        1419.7114307882425,
+        922.6058085788741
+      ]
+    },
+    "frontendVersion": "1.38.14",
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "links_added_by_ue": [],
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

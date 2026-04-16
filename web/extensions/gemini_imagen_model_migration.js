@@ -1,6 +1,6 @@
 import { app } from "../../../scripts/app.js";
 
-const TARGET_NODES = new Set(["BananaImageNode", "BananaImageNodeV2"]);
+const TARGET_NODES = new Set(["BananaImageNode", "BananaImageNodeV2", "BananaImageNodeV3"]);
 const LEGACY_VIP_LABEL = "gemini-3-pro-image-preview-vip(高成本)";
 const NEW_VIP_LABEL = "gemini-3-pro-image-preview-vip";
 
