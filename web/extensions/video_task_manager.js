@@ -3134,7 +3134,6 @@ function renderCard(task) {
 
   // Central content based on state
   if (ns === "pending") {
-    const txt = document.createElement("div");
     const spinner = document.createElement("div");
     spinner.className = "banana-tc-spinner";
     spinner.style.opacity = "0.5";
