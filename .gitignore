@@ -20,6 +20,10 @@ env/
 ENV/
 .venv
 
+# 任务历史（含用户 prompt、CDN URL 等运行时数据）
+history.toml
+history.toml.bak
+
 # 敏感配置文件（包含 API Key）
 config.ini   
 config.ini.example                      # 正常运行配置（可以填正式 key，但不提交）
@@ -109,4 +113,7 @@ cf_workeryf/*
 # cf_workergk 本地实验目录（不纳入主仓库）
 cf_workergk/localai/
 cf_workergk/docs/
+cf_worker/*
+AIwork/*
 .claude/
+.gstack/

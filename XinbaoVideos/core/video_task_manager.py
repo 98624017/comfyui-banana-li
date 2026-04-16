@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import glob
 import json
 import os
 import random
@@ -7,8 +8,10 @@ import shutil
 import subprocess
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import urlparse, parse_qs
 
 from aiohttp import web
 import requests
@@ -56,6 +59,7 @@ _DEFAULT_POLL_INTERVAL_SECONDS = 15.0
 
 _TERMINAL_STATUSES = {"success", "failed"}
 _ACTIVE_STATUSES = {"pending", "processing"}
+_VIDEO_EXTENSIONS: frozenset = frozenset({".mp4", ".webm", ".mov", ".avi"})
 
 
 def _now_ts() -> int:
@@ -79,6 +83,25 @@ def _safe_str(value: object) -> str:
     return str(value)
 
 
+def _serialize_local_file_inline(lf: Dict[str, Any]) -> Optional[str]:
+    """将 local_file 字典序列化为 TOML inline table 字符串。
+
+    仅在 filename 非空时返回有效字符串，否则返回 None。
+    """
+    if not isinstance(lf, dict):
+        return None
+    fn = _safe_str(lf.get("filename")).strip()
+    if not fn:
+        return None
+    sf = _safe_str(lf.get("subfolder")).strip()
+    ft = _safe_str(lf.get("type")).strip() or "output"
+    return "{ filename = %s, subfolder = %s, type = %s }" % (
+        json.dumps(fn),
+        json.dumps(sf, ensure_ascii=False),
+        json.dumps(ft),
+    )
+
+
 def _sanitize_filename_component(value: str) -> str:
     raw = (value or "").strip()
     if not raw:
@@ -93,12 +116,30 @@ def _sanitize_filename_component(value: str) -> str:
     return sanitized or "unknown"
 
 
+def _local_file_to_abs_path(lf: Dict[str, Any]) -> Optional[str]:
+    """将 local_file 字典转为绝对磁盘路径（无安全校验，仅拼接）。
+
+    找不到文件时返回 None。适用于内部可信数据（如后台下载写入的记录）。
+    """
+    fn = _safe_str((lf or {}).get("filename")).strip()
+    if not fn:
+        return None
+    sf = _safe_str((lf or {}).get("subfolder")).strip()
+    ft = _safe_str((lf or {}).get("type")).strip() or "output"
+    base = {
+        "input": folder_paths.get_input_directory(),
+        "temp": folder_paths.get_temp_directory(),
+    }.get(ft, folder_paths.get_output_directory())
+    path = os.path.join(base, sf, fn) if sf else os.path.join(base, fn)
+    return path if os.path.isfile(path) else None
+
+
 def _resolve_local_file_path(local_file: Dict[str, Any]) -> str | None:
     filename = _safe_str((local_file or {}).get("filename")).strip()
     subfolder = _safe_str((local_file or {}).get("subfolder")).strip()
     file_type = _safe_str((local_file or {}).get("type")).strip() or "output"
 
-    if not filename or not subfolder:
+    if not filename:
         return None
     if os.path.basename(filename) != filename:
         return None
@@ -148,7 +189,7 @@ def _acquire_history_process_lock(timeout_seconds: float = 10.0):
     跨进程文件锁：使用独立的 .lock 文件。
 
     说明：
-    - history.toml 本身使用“读-改-写 + 原子替换”，但仍需要跨进程互斥，避免并发写入导致文件损坏。
+    - history.toml 本身使用"读-改-写 + 原子替换"，但仍需要跨进程互斥，避免并发写入导致文件损坏。
     - 锁范围仅覆盖文件读写，不应包住网络请求（避免长时间占锁）。
     """
     os.makedirs(os.path.dirname(_HISTORY_LOCK_PATH), exist_ok=True)
@@ -286,7 +327,7 @@ class VideoTaskHistoryStore:
         terminal.sort(key=lambda t: _safe_int(t.get("created_at"), 0), reverse=True)
         terminal = terminal[: self._max_terminal_tasks]
 
-        # 输出给 UI 以“新任务优先”的顺序：created_at 降序
+        # 输出给 UI 以"新任务优先"的顺序：created_at 降序
         merged = active + terminal
         merged.sort(key=lambda t: _safe_int(t.get("created_at"), 0), reverse=True)
         return merged
@@ -350,20 +391,15 @@ class VideoTaskHistoryStore:
             if video_url:
                 lines.append(f"video_url = {json.dumps(video_url)}\n")
 
-            local_file = task.get("local_file")
-            if isinstance(local_file, dict):
-                filename = _safe_str(local_file.get("filename")).strip()
-                subfolder = _safe_str(local_file.get("subfolder")).strip()
-                file_type = _safe_str(local_file.get("type")).strip() or "output"
-                if filename and subfolder:
-                    lines.append(
-                        "local_file = { filename = %s, subfolder = %s, type = %s }\n"
-                        % (
-                            json.dumps(filename),
-                            json.dumps(subfolder, ensure_ascii=False),
-                            json.dumps(file_type),
-                        )
-                    )
+            lf_inline = _serialize_local_file_inline(task.get("local_file") or {})
+            if lf_inline:
+                lines.append(f"local_file = {lf_inline}\n")
+
+            local_files = task.get("local_files")
+            if isinstance(local_files, list) and local_files:
+                items = [s for lf in local_files if (s := _serialize_local_file_inline(lf))]
+                if items:
+                    lines.append("local_files = [%s]\n" % ", ".join(items))
 
             retry_count = _safe_int(task.get("retry_count"), 0)
             if retry_count > 0:
@@ -388,6 +424,29 @@ class VideoTaskHistoryStore:
             error = _safe_str(task.get("error")).strip()
             if error:
                 lines.append(f"error = {json.dumps(error, ensure_ascii=False)}\n")
+
+            # banana_v3 扩展字段
+            image_urls = task.get("image_urls")
+            if isinstance(image_urls, list) and image_urls:
+                # TOML 数组序列化
+                url_items = ", ".join(json.dumps(u) for u in image_urls if isinstance(u, str))
+                lines.append(f"image_urls = [{url_items}]\n")
+
+            image_count = task.get("image_count")
+            if isinstance(image_count, int) and image_count > 0:
+                lines.append(f"image_count = {image_count}\n")
+
+            batch_size_val = task.get("batch_size")
+            if isinstance(batch_size_val, int) and batch_size_val > 0:
+                lines.append(f"batch_size = {batch_size_val}\n")
+
+            aspect_ratio = _safe_str(task.get("aspect_ratio")).strip()
+            if aspect_ratio:
+                lines.append(f"aspect_ratio = {json.dumps(aspect_ratio)}\n")
+
+            seed_val = task.get("seed")
+            if isinstance(seed_val, int):
+                lines.append(f"seed = {seed_val}\n")
 
         return "".join(lines)
 
@@ -508,10 +567,32 @@ class VideoTaskHistoryStore:
                     continue
                 merged = dict(item)
                 merged["next_poll_at"] = now
+                current_status = _safe_str(merged.get("status")).strip().lower()
+                if current_status in {"failed", "waiting_key"}:
+                    merged["status"] = "processing"
+                    merged["error"] = ""
+                    merged["retry_count"] = 0
                 tasks[idx] = merged
             data["tasks"] = tasks
 
         self._mutate(_do)
+
+    def delete_tasks(self, task_ids: list) -> int:
+        ids_set = set(task_ids)
+        deleted = 0
+
+        def _do(data: Dict[str, Any]) -> None:
+            nonlocal deleted
+            tasks = data.get("tasks", [])
+            if not isinstance(tasks, list):
+                return
+            original_len = len(tasks)
+            tasks[:] = [t for t in tasks if not (isinstance(t, dict) and _safe_str(t.get("id")).strip() in ids_set)]
+            deleted = original_len - len(tasks)
+            data["tasks"] = tasks
+
+        self._mutate(_do)
+        return deleted
 
 
 class VideoTaskKeyCache:
@@ -721,6 +802,7 @@ class VideoTaskDaemon:
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._session_cache: Dict[Tuple[bool, bool], requests.Session] = {}
+        self._download_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="BananaDownload")
 
     def _resolve_task_network_options(self, task: Dict[str, Any]) -> Tuple[bool, bool]:
         """
@@ -743,24 +825,23 @@ class VideoTaskDaemon:
 
         return verify_ssl, bypass_proxy
 
-    def _get_session(self, verify_ssl: bool, bypass_proxy: bool) -> requests.Session:
-        """
-        根据网络选项复用/创建 session。
+    @staticmethod
+    def _make_session(verify_ssl: bool, bypass_proxy: bool) -> requests.Session:
+        """创建配置好的 requests.Session（不缓存）。"""
+        session = requests.Session()
+        if bypass_proxy:
+            session.trust_env = False
+            session.proxies = {}
+        session.verify = verify_ssl
+        return session
 
-        说明：
-        - 轮询由单线程执行，但不同任务可能使用不同 SSL/代理配置，不能共享同一“可变” Session。
-        - 仅按 (verify_ssl, bypass_proxy) 维度缓存，最大 4 个实例，KISS 且可复用连接池。
-        """
+    def _get_session(self, verify_ssl: bool, bypass_proxy: bool) -> requests.Session:
+        """根据网络选项复用/创建 session（仅限轮询主线程使用）。"""
         key = (bool(verify_ssl), bool(bypass_proxy))
         cached = self._session_cache.get(key)
         if cached is not None:
             return cached
-
-        session = requests.Session()
-        if key[1]:
-            session.trust_env = False
-            session.proxies = {}
-        session.verify = key[0]
+        session = self._make_session(*key)
         self._session_cache[key] = session
         return session
 
@@ -773,6 +854,85 @@ class VideoTaskDaemon:
 
     def stop(self) -> None:
         self._stop_event.set()
+        self._download_executor.shutdown(wait=False, cancel_futures=True)
+
+    # ── 后台下载（与轮询线程解耦） ──────────────────────────
+
+    def _download_in_background(
+        self,
+        task_id: str,
+        provider: str,
+        urls: List[str],
+        verify_ssl: bool,
+        bypass_proxy: bool,
+        is_batch: bool,
+    ) -> None:
+        """将下载任务提交到线程池，立即返回不阻塞轮询。"""
+        try:
+            self._download_executor.submit(
+                self._bg_download_and_update,
+                task_id, provider, urls, verify_ssl, bypass_proxy, is_batch,
+            )
+        except RuntimeError:
+            pass  # executor 已 shutdown，跳过本次下载
+
+    def _bg_download_and_update(
+        self,
+        task_id: str,
+        provider: str,
+        urls: List[str],
+        verify_ssl: bool,
+        bypass_proxy: bool,
+        is_batch: bool,
+    ) -> None:
+        """后台工作线程：下载文件并补写 local_file/local_files。
+
+        在 ThreadPoolExecutor 中运行。失败不影响已写入的 success 状态。
+        """
+        session = None
+        try:
+            # requests.Session 不是线程安全的，后台线程需创建独立实例
+            session = self._make_session(verify_ssl, bypass_proxy)
+
+            saved_files: List[Dict[str, str]] = []
+            for idx, url in enumerate(urls):
+                download_id = f"{task_id}_{idx}" if is_batch and len(urls) > 1 else task_id
+                try:
+                    local_file = self._try_auto_download(
+                        download_id, provider, url, session=session,
+                    )
+                    if local_file:
+                        saved_files.append(local_file)
+                except Exception as exc:
+                    logger.warning(
+                        f"后台下载失败（{download_id}）："
+                        f"{type(exc).__name__} {_mask_text(str(exc))}"
+                    )
+
+            if saved_files:
+                fields: Dict[str, Any] = {"local_file": saved_files[0]}
+                # 保留部分下载保护：仅全部成功时设置 local_files
+                if is_batch and len(saved_files) == len(urls):
+                    fields["local_files"] = saved_files
+                self._history.update_task(task_id, fields)
+                try:
+                    from app.assets.scanner import seed_assets
+                    seed_assets(("output",))
+                except Exception:
+                    logger.debug("资产中心扫描跳过（ComfyUI 版本不支持或扫描失败）")
+        except Exception as exc:
+            logger.warning(
+                f"后台下载异常（{task_id}）："
+                f"{type(exc).__name__} {_mask_text(str(exc))}"
+            )
+        finally:
+            if session:
+                try:
+                    session.close()
+                except Exception:
+                    pass
+
+    # ── 轮询主循环 ─────────────────────────────────────────
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
@@ -788,7 +948,9 @@ class VideoTaskDaemon:
             return
 
         now = _now_ts()
-        due: List[Dict[str, Any]] = []
+        banana_v3_due: List[Dict[str, Any]] = []
+        other_due: List[Dict[str, Any]] = []
+
         for task in tasks:
             if not isinstance(task, dict):
                 continue
@@ -798,9 +960,32 @@ class VideoTaskDaemon:
             next_poll_at = _safe_int(task.get("next_poll_at"), 0)
             if next_poll_at > now:
                 continue
-            due.append(task)
 
-        for task in due:
+            provider = _safe_str(task.get("provider")).strip().lower()
+            if provider == "banana_v3":
+                banana_v3_due.append(task)
+            else:
+                other_due.append(task)
+
+        # BananaV3: 批量轮询（一次 batch-get 查询所有到期任务）
+        if banana_v3_due:
+            try:
+                self._poll_banana_v3_batch(banana_v3_due, now)
+            except Exception as exc:
+                logger.warning(
+                    f"[banana_v3] 批量轮询异常，降级为逐个轮询: {type(exc).__name__} {_mask_text(str(exc))}"
+                )
+                for task in banana_v3_due:
+                    try:
+                        self._process_task(task, now)
+                    except Exception as inner_exc:
+                        tid = _safe_str(task.get("id")).strip()
+                        logger.warning(
+                            f"视频任务轮询异常（已忽略）：{tid or 'unknown'} {type(inner_exc).__name__} {_mask_text(str(inner_exc))}"
+                        )
+
+        # 其他 provider: 逐个轮询（不变）
+        for task in other_due:
             try:
                 self._process_task(task, now)
             except Exception as exc:
@@ -831,6 +1016,10 @@ class VideoTaskDaemon:
                 },
             )
             return
+
+        # banana_v3 使用独立的轮询逻辑，不走通用 _query_status 路径
+        if provider == "banana_v3":
+            return self._poll_banana_v3_status(task, api_key, now)
 
         try:
             verify_ssl, bypass_proxy = self._resolve_task_network_options(task)
@@ -889,13 +1078,19 @@ class VideoTaskDaemon:
             fields["error"] = ""
             fields["next_poll_at"] = 0
 
-            # 自动下载：仅在“状态刚完成”时触发一次（默认关闭）
-            if self._settings.is_auto_download_enabled():
-                local_file = self._try_auto_download(task_id, provider, video_url, session=session)
-                if local_file:
-                    fields["local_file"] = local_file
-
+            # 立即将 success 状态落盘，用户无需等待下载完成
             self._history.update_task(task_id, fields)
+
+            # 后台异步下载：图片/AI应用总是下载；视频受 auto_download 开关控制
+            _ext = self._guess_ext_from_url(video_url)
+            _is_video = _ext in _VIDEO_EXTENSIONS
+            _should_download = (not _is_video) or self._settings.is_auto_download_enabled()
+            if _should_download:
+                verify_ssl, bypass_proxy = self._resolve_task_network_options(task)
+                self._download_in_background(
+                    task_id, provider, [video_url],
+                    verify_ssl, bypass_proxy, is_batch=False,
+                )
             return
 
         if status in ("failed", "error", "canceled", "cancelled"):
@@ -1051,6 +1246,236 @@ class VideoTaskDaemon:
             },
         )
 
+    # ── BananaV3 batch polling ─────────────────────────────────
+
+    def _handle_banana_v3_success(self, task_id: str, task: Dict[str, Any],
+                                  item: dict, client, now: int) -> None:
+        """BananaV3 任务成功：提取图片、自动下载、更新历史。"""
+        content_items, _ = client.extract_content(item)
+        image_urls = [u for u in content_items if isinstance(u, str) and u.startswith("http")]
+        logger.info(f"[banana_v3] 任务完成 {task_id}: {len(image_urls)} 张图片")
+
+        fields: Dict[str, Any] = {
+            "status": "success",
+            "progress": 100,
+            "image_urls": image_urls,
+            "image_count": len(image_urls),
+            "last_checked_at": now,
+        }
+
+        # 立即将 success 状态落盘，用户无需等待下载完成
+        self._history.update_task(task_id, fields)
+
+        # 后台异步下载，完成后补写 local_file/local_files
+        if image_urls:
+            verify_ssl, bypass_proxy = self._resolve_task_network_options(task)
+            self._download_in_background(
+                task_id, "banana_v3", image_urls,
+                verify_ssl, bypass_proxy, is_batch=True,
+            )
+
+    def _poll_banana_v3_batch(self, tasks: List[Dict[str, Any]], now: int) -> None:
+        """将多个到期的 BananaV3 任务合并为一次 batch-get 调用。
+
+        按 (api_key, base_url) 分组，每组执行一次 batch_get_tasks()，
+        再将响应中的 items 分发到各任务。
+        """
+        from workflow_parallel import compute_banana_v3_followup_delay
+        from api_client import GeminiApiClient
+        from config_manager import ConfigManager
+
+        config_mgr = ConfigManager()
+        client = GeminiApiClient(config_mgr, logger)
+
+        # ── Step 1: 按 (api_key, base_url) 分组 ──
+        groups: Dict[tuple, List[Dict[str, Any]]] = {}
+        skipped: List[Dict[str, Any]] = []
+
+        for task in tasks:
+            task_id = _safe_str(task.get("id")).strip()
+            provider = _safe_str(task.get("provider")).strip().lower()
+            route_choice = _safe_str(task.get("route_choice")).strip()
+            base_url = _safe_str(task.get("base_url")).strip()
+
+            if not task_id or not base_url:
+                skipped.append(task)
+                continue
+
+            api_key = self._keys.get_key(provider, route_choice)
+            if not api_key:
+                self._history.update_task(task_id, {
+                    "status": "waiting_key",
+                    "error": "等待用户在前端助手输入 Key",
+                    "next_poll_at": 0,
+                })
+                continue
+
+            group_key = (api_key, base_url)
+            groups.setdefault(group_key, []).append(task)
+
+        # ── Step 2: 每组一次 batch-get ──
+        for (api_key, base_url), group_tasks in groups.items():
+            task_ids = [_safe_str(t.get("id")).strip() for t in group_tasks]
+            task_map = {_safe_str(t.get("id")).strip(): t for t in group_tasks}
+
+            # verify_ssl: 组内有任何一个为 False 则整组 False
+            verify_ssl = all(t.get("verify_ssl", True) for t in group_tasks)
+
+            logger.info(f"[banana_v3] 批量轮询 {len(task_ids)} 个任务")
+
+            try:
+                response = client.batch_get_tasks(
+                    api_key, task_ids,
+                    async_base_url=base_url,
+                    timeout=(15, 30),
+                    verify_ssl=verify_ssl,
+                )
+            except Exception as exc:
+                # batch 失败：对组内每个任务执行退避重试
+                logger.warning(
+                    f"[banana_v3] batch-get 失败 ({len(task_ids)} 个任务): "
+                    f"{type(exc).__name__} {_mask_text(str(exc))}"
+                )
+                for task in group_tasks:
+                    tid = _safe_str(task.get("id")).strip()
+                    retry = _safe_int(task.get("retry_count"), 0) + 1
+                    backoff = min(60, 15 * (2 ** min(retry, 4)))
+                    self._history.update_task(tid, {
+                        "retry_count": retry,
+                        "last_checked_at": now,
+                        "next_poll_at": now + backoff,
+                    })
+                continue
+
+            # ── Step 3: 分发结果到各任务 ──
+            items = response.get("items", [])
+            next_poll_ms = response.get("next_poll_after_ms", 0)
+            item_map: Dict[str, dict] = {}
+            for item in items:
+                iid = item.get("id")
+                if iid:
+                    item_map[iid] = item
+
+            for task in group_tasks:
+                tid = _safe_str(task.get("id")).strip()
+                is_first = _safe_int(task.get("last_checked_at"), 0) <= 0
+                item = item_map.get(tid)
+
+                if not item:
+                    # 服务端未返回该任务（仍在排队或已过期）
+                    next_delay = compute_banana_v3_followup_delay(
+                        is_first_followup=is_first,
+                        suggested_seconds=next_poll_ms / 1000,
+                    )
+                    self._history.update_task(tid, {
+                        "last_checked_at": now,
+                        "next_poll_at": now + int(next_delay),
+                    })
+                    continue
+
+                status = item.get("status", "")
+
+                if status == "succeeded":
+                    self._handle_banana_v3_success(tid, task, item, client, now)
+                elif status in ("failed", "upstream_timeout", "not_found"):
+                    error_detail = item.get("error") or item.get("message") or ""
+                    if isinstance(error_detail, dict):
+                        error_detail = error_detail.get("message") or str(error_detail)
+                    fail_msg = f"{status}: {error_detail}" if error_detail else status
+                    logger.warning(f"[banana_v3] 任务失败 {tid}: {fail_msg}")
+                    self._history.update_task(tid, {
+                        "status": "failed",
+                        "error": fail_msg,
+                        "last_checked_at": now,
+                    })
+                else:
+                    # running/queued/accepted → 继续等待
+                    next_delay = compute_banana_v3_followup_delay(
+                        is_first_followup=is_first,
+                        suggested_seconds=next_poll_ms / 1000,
+                    )
+                    self._history.update_task(tid, {
+                        "status": "processing",
+                        "last_checked_at": now,
+                        "next_poll_at": now + int(next_delay),
+                        "retry_count": 0,
+                    })
+
+        # 跳过的任务（缺少 id 或 base_url）降级为逐个处理
+        for task in skipped:
+            try:
+                self._process_task(task, now)
+            except Exception:
+                pass
+
+    def _poll_banana_v3_status(self, task, api_key, now):
+        """banana_v3 异步生图任务的单任务轮询（batch 失败时的降级路径）。"""
+        task_id = task["id"]
+        base_url = task.get("base_url", "https://async.xinbao-ai.com")
+        from workflow_parallel import compute_banana_v3_followup_delay
+
+        from api_client import GeminiApiClient
+        from config_manager import ConfigManager
+        config_mgr = ConfigManager()
+        client = GeminiApiClient(config_mgr, logger)
+        is_first_followup = _safe_int(task.get("last_checked_at"), 0) <= 0
+
+        try:
+            response = client.batch_get_tasks(
+                api_key, [task_id], async_base_url=base_url,
+                timeout=(15, 30), verify_ssl=task.get("verify_ssl", True),
+            )
+        except Exception as exc:
+            logger.warning(f"[banana_v3] 轮询失败 {task_id}: {exc}")
+            retry = task.get("retry_count", 0) + 1
+            backoff = min(60, 15 * (2 ** min(retry, 4)))
+            self._history.update_task(task_id, {
+                "retry_count": retry,
+                "last_checked_at": now,
+                "next_poll_at": now + backoff,
+            })
+            return
+
+        items = response.get("items", [])
+        if not items:
+            next_delay = compute_banana_v3_followup_delay(
+                is_first_followup=is_first_followup,
+                suggested_seconds=response.get("next_poll_after_ms", 0) / 1000,
+            )
+            self._history.update_task(task_id, {
+                "last_checked_at": now,
+                "next_poll_at": now + int(next_delay),
+            })
+            return
+
+        item = items[0]
+        status = item.get("status", "")
+
+        if status == "succeeded":
+            self._handle_banana_v3_success(task_id, task, item, client, now)
+        elif status in ("failed", "upstream_timeout", "not_found"):
+            error_detail = item.get("error") or item.get("message") or ""
+            if isinstance(error_detail, dict):
+                error_detail = error_detail.get("message") or str(error_detail)
+            fail_msg = f"{status}: {error_detail}" if error_detail else status
+            logger.warning(f"[banana_v3] 任务失败 {task_id}: {fail_msg}")
+            self._history.update_task(task_id, {
+                "status": "failed",
+                "error": fail_msg,
+                "last_checked_at": now,
+            })
+        else:
+            next_delay = compute_banana_v3_followup_delay(
+                is_first_followup=is_first_followup,
+                suggested_seconds=response.get("next_poll_after_ms", 0) / 1000,
+            )
+            self._history.update_task(task_id, {
+                "status": "processing",
+                "last_checked_at": now,
+                "next_poll_at": now + int(next_delay),
+                "retry_count": 0,
+            })
+
     def _try_auto_download(
         self, task_id: str, provider: str, video_url: str, *, session: requests.Session
     ) -> Optional[Dict[str, str]]:
@@ -1066,10 +1491,14 @@ class VideoTaskDaemon:
         os.makedirs(target_dir, exist_ok=True)
         target_path = os.path.join(target_dir, filename)
 
-        if os.path.exists(target_path):
-            return {"filename": filename, "subfolder": subfolder, "type": "output"}
+        # 幂等检查：匹配同 stem 的任何扩展名（Content-Type 可能修正过扩展名）
+        stem = f"{safe_provider}_{safe_id}"
+        existing = glob.glob(os.path.join(target_dir, f"{stem}.*"))
+        if existing:
+            found_name = os.path.basename(existing[0])
+            return {"filename": found_name, "subfolder": subfolder, "type": "output"}
 
-        is_video = ext in (".mp4", ".webm", ".mov", ".avi")
+        is_video = ext in _VIDEO_EXTENSIONS
         label = "视频" if is_video else "AI应用"
 
         if is_video:
@@ -1109,7 +1538,6 @@ class VideoTaskDaemon:
     def _guess_ext_from_url(url: str) -> str:
         """从 URL 路径推断文件扩展名，无法判断时默认 .png。"""
         try:
-            from urllib.parse import urlparse
             path = urlparse(url).path.lower()
             for ext in (".mp4", ".webm", ".mov", ".avi", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"):
                 if path.endswith(ext):
@@ -1157,6 +1585,7 @@ class VideoTaskManager:
         api_key_source: str = "node_input",
         verify_ssl: Optional[bool] = None,
         bypass_proxy: Optional[bool] = None,
+        daemon_poll: bool = True,
     ) -> None:
         tid = (task_id or "").strip()
         if not tid:
@@ -1181,6 +1610,14 @@ class VideoTaskManager:
             task["verify_ssl"] = False
         if isinstance(bypass_proxy, bool) and bypass_proxy:
             task["bypass_proxy"] = True
+        if not daemon_poll:
+            # 协调器模式：延迟 daemon 轮询到协调器超时之后
+            # 正常情况下协调器会在 ~420s 内回写结果（next_poll_at=0），daemon 永远不碰
+            # 崩溃情况下 daemon 会在 ~8 分钟后恢复这些任务，不会永久卡住
+            task["next_poll_at"] = now + 480
+        elif provider == "banana_v3":
+            # banana_v3 首次轮询延迟 10s，尽快发现快速失败
+            task["next_poll_at"] = now + 10
         self.history.upsert_task(task)
 
     def record_task_success(self, task_id: str, video_url: str) -> None:
@@ -1353,6 +1790,136 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             reason = "explorer_failed"
 
         return web.json_response({"success": True, "data": {"opened": opened, "reason": reason}})
+
+    @prompt_server.routes.post("/banana/video_tasks/delete")
+    async def handle_delete(request):
+        try:
+            body = await request.json()
+            task_ids = body.get("task_ids", [])
+            if not task_ids:
+                return web.json_response({"success": False, "message": "task_ids 不能为空"}, status=400)
+            deleted = VIDEO_TASK_MANAGER.history.delete_tasks(task_ids)
+            return web.json_response({"success": True, "data": {"deleted": deleted}})
+        except Exception as exc:
+            return web.json_response({"success": False, "message": str(exc)}, status=500)
+
+    @prompt_server.routes.post("/banana/video_tasks/push_to_canvas")
+    async def handle_push_to_canvas(request):
+        try:
+            body = await request.json()
+            image_url = body.get("image_url", "").strip()
+            if not image_url:
+                return web.json_response({"success": False, "message": "image_url 不能为空"}, status=400)
+
+            input_dir = folder_paths.get_input_directory()
+
+            # 本地 /view URL：直接从输出目录复制到输入目录，跳过网络请求
+            if image_url.startswith("/view"):
+                params = parse_qs(urlparse(image_url).query)
+                lf_dict = {
+                    "filename": (params.get("filename") or [None])[0],
+                    "subfolder": (params.get("subfolder") or [""])[0],
+                    "type": (params.get("type") or ["output"])[0],
+                }
+                src_path = _local_file_to_abs_path(lf_dict)
+                if src_path:
+                    dest = os.path.join(input_dir, os.path.basename(src_path))
+                    if not os.path.exists(dest):
+                        shutil.copy2(src_path, dest)
+                    return web.json_response({"success": True, "data": {"filename": os.path.basename(src_path)}})
+                return web.json_response({"success": False, "message": "本地文件不存在"}, status=404)
+
+            # 远程 URL：下载后保存到输入目录
+            import requests as req_lib
+            resp = req_lib.get(image_url, timeout=(15, 60), verify=False)
+            resp.raise_for_status()
+            image_bytes = resp.content
+
+            import hashlib
+            ct = resp.headers.get("content-type", "")
+            ext = "jpg" if "jpeg" in ct else ("webp" if "webp" in ct else "png")
+            md5_short = hashlib.md5(image_bytes).hexdigest()[:8]
+            filename = f"banana_{md5_short}.{ext}"
+            filepath = os.path.join(input_dir, filename)
+            with open(filepath, "wb") as f:
+                f.write(image_bytes)
+
+            return web.json_response({"success": True, "data": {"filename": filename}})
+        except Exception as exc:
+            return web.json_response({"success": False, "message": str(exc)}, status=500)
+
+    @prompt_server.routes.get("/banana/video_tasks/browse_dir")
+    async def handle_browse_dir(request):
+        try:
+            path = request.query.get("path", "").strip()
+            if not path:
+                path = os.path.expanduser("~")
+            if not os.path.isdir(path):
+                return web.json_response({"success": False, "message": f"目录不存在: {path}"}, status=400)
+            dirs = sorted([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d)) and not d.startswith(".")])
+            return web.json_response({"success": True, "data": {"current": path, "dirs": dirs, "parent": os.path.dirname(path)}})
+        except PermissionError:
+            return web.json_response({"success": False, "message": "权限不足"}, status=403)
+        except Exception as exc:
+            return web.json_response({"success": False, "message": str(exc)}, status=500)
+
+    @prompt_server.routes.post("/banana/video_tasks/download")
+    async def handle_batch_download(request):
+        try:
+            body = await request.json()
+            task_ids = body.get("task_ids", [])
+            save_dir = body.get("save_dir", "").strip()
+            if not task_ids or not save_dir:
+                return web.json_response({"success": False, "message": "task_ids 和 save_dir 不能为空"}, status=400)
+
+            os.makedirs(save_dir, exist_ok=True)
+            tasks = VIDEO_TASK_MANAGER.history.list_tasks()
+            id_to_task = {t["id"]: t for t in tasks}
+
+            import requests as req_lib
+            downloaded = 0
+            failed = 0
+
+            for tid in task_ids:
+                task = id_to_task.get(tid)
+                if not task:
+                    continue
+                image_urls = task.get("image_urls", [])
+                local_files = task.get("local_files", [])
+                if not isinstance(local_files, list):
+                    local_files = []
+                for idx, url in enumerate(image_urls):
+                    dest_path = os.path.join(save_dir, f"{tid}_{idx+1}.png")
+                    try:
+                        # 优先从已下载的本地文件复制（避免远程链接过期）
+                        src = None
+                        if idx < len(local_files) and isinstance(local_files[idx], dict):
+                            src = _local_file_to_abs_path(local_files[idx])
+                        if src:
+                            shutil.copy2(src, dest_path)
+                            downloaded += 1
+                        else:
+                            resp = req_lib.get(url, timeout=(15, 60), verify=False)
+                            resp.raise_for_status()
+                            with open(dest_path, "wb") as f:
+                                f.write(resp.content)
+                            downloaded += 1
+                    except Exception:
+                        failed += 1
+                video_url = task.get("video_url", "")
+                if video_url and not image_urls:
+                    try:
+                        resp = req_lib.get(video_url, timeout=(15, 120), verify=False)
+                        resp.raise_for_status()
+                        with open(os.path.join(save_dir, f"{tid}.mp4"), "wb") as f:
+                            f.write(resp.content)
+                        downloaded += 1
+                    except Exception:
+                        failed += 1
+
+            return web.json_response({"success": True, "data": {"downloaded": downloaded, "failed": failed}})
+        except Exception as exc:
+            return web.json_response({"success": False, "message": str(exc)}, status=500)
 
     _ROUTE_REGISTERED = True
 

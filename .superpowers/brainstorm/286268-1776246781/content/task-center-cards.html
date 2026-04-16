@@ -1,0 +1,146 @@
+<h2>心宝任务中心 — 卡片式设计方案</h2>
+<p class="subtitle">模态窗内的卡片布局，支持图片和视频任务统一展示</p>
+
+<div class="mockup">
+  <div class="mockup-header">心宝❤任务中心</div>
+  <div class="mockup-body" style="background:#0a0a0f;padding:20px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+
+    <!-- 顶部工具栏 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div style="display:flex;gap:8px;">
+        <span style="background:#1e1e2e;color:#a0a0b0;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #2a2a3e;">全部 <span style="color:#7c7cff;font-weight:600;">12</span></span>
+        <span style="background:linear-gradient(135deg,#7c7cff22,#7c7cff11);color:#7c7cff;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #7c7cff44;">进行中 <span style="font-weight:600;">3</span></span>
+        <span style="background:#1e1e2e;color:#a0a0b0;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #2a2a3e;">已完成 <span style="font-weight:600;">8</span></span>
+        <span style="background:#1e1e2e;color:#a0a0b0;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;border:1px solid #2a2a3e;">失败 <span style="font-weight:600;">1</span></span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input style="background:#1e1e2e;border:1px solid #2a2a3e;color:#e0e0e0;padding:6px 12px;border-radius:8px;font-size:13px;width:160px;" placeholder="🔍 搜索任务...">
+        <button style="background:#7c7cff;color:white;border:none;padding:6px 14px;border-radius:8px;font-size:13px;cursor:pointer;">刷新全部</button>
+      </div>
+    </div>
+
+    <!-- 卡片网格 -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+
+      <!-- 卡片1: 图片任务 - 进行中 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #1e1e35;overflow:hidden;transition:all 0.2s;">
+        <div style="height:140px;background:linear-gradient(135deg,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="width:32px;height:32px;border:3px solid #7c7cff;border-top-color:transparent;border-radius:50%;animation-name:spin;"></div>
+          <span style="position:absolute;top:8px;left:8px;background:#7c7cff33;color:#7c7cff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🖼️ 图片</span>
+          <span style="position:absolute;top:8px;right:8px;background:#f59e0b33;color:#f59e0b;padding:2px 8px;border-radius:6px;font-size:11px;">轮询中 · 第5轮</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">gemini-3-pro-image</span>
+            <span style="color:#666;font-size:11px;">2分钟前</span>
+          </div>
+          <div style="background:#1a1a2e;height:4px;border-radius:2px;overflow:hidden;margin-bottom:8px;">
+            <div style="width:60%;height:100%;background:linear-gradient(90deg,#7c7cff,#a78bfa);border-radius:2px;"></div>
+          </div>
+          <div style="color:#888;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">一只橘猫坐在窗台上看夕阳...</div>
+        </div>
+      </div>
+
+      <!-- 卡片2: 图片任务 - 成功 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #1e1e35;overflow:hidden;">
+        <div style="height:140px;background:linear-gradient(135deg,#1a2e1a,#1a3a1a);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="width:120px;height:120px;background:linear-gradient(135deg,#f97316,#eab308,#22c55e);border-radius:8px;opacity:0.85;"></div>
+          <span style="position:absolute;top:8px;left:8px;background:#7c7cff33;color:#7c7cff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🖼️ 图片</span>
+          <span style="position:absolute;top:8px;right:8px;background:#22c55e33;color:#22c55e;padding:2px 8px;border-radius:6px;font-size:11px;">✓ 完成</span>
+          <span style="position:absolute;bottom:8px;right:8px;background:#00000088;color:white;padding:2px 8px;border-radius:6px;font-size:11px;">3 张</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">gemini-3-pro-image</span>
+            <span style="color:#666;font-size:11px;">5分钟前</span>
+          </div>
+          <div style="color:#888;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">产品白底图，化妆品瓶装...</div>
+        </div>
+      </div>
+
+      <!-- 卡片3: 视频任务 - 成功 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #1e1e35;overflow:hidden;">
+        <div style="height:140px;background:linear-gradient(135deg,#1a1a2e,#2e1a2e);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="font-size:48px;opacity:0.4;">▶️</div>
+          <span style="position:absolute;top:8px;left:8px;background:#ec489933;color:#ec4899;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🎬 视频</span>
+          <span style="position:absolute;top:8px;right:8px;background:#22c55e33;color:#22c55e;padding:2px 8px;border-radius:6px;font-size:11px;">✓ 完成</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">Sora</span>
+            <span style="color:#666;font-size:11px;">10分钟前</span>
+          </div>
+          <div style="color:#888;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">城市夜景航拍，霓虹灯闪烁...</div>
+        </div>
+      </div>
+
+      <!-- 卡片4: 图片任务 - 失败 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #3b1c1c;overflow:hidden;">
+        <div style="height:140px;background:linear-gradient(135deg,#2e1a1a,#3b1c1c);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="font-size:32px;opacity:0.5;">⚠️</div>
+          <span style="position:absolute;top:8px;left:8px;background:#7c7cff33;color:#7c7cff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🖼️ 图片</span>
+          <span style="position:absolute;top:8px;right:8px;background:#ef444433;color:#ef4444;padding:2px 8px;border-radius:6px;font-size:11px;">✗ 超时</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">gemini-3-pro-image</span>
+            <span style="color:#666;font-size:11px;">15分钟前</span>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button style="background:#ef444422;color:#ef4444;border:1px solid #ef444444;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;">重试</button>
+            <button style="background:#1e1e2e;color:#a0a0b0;border:1px solid #2a2a3e;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;">手动轮询</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 卡片5: 图片任务 - 等待中 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #1e1e35;overflow:hidden;">
+        <div style="height:140px;background:linear-gradient(135deg,#1a1a2e,#1e1e35);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="color:#666;font-size:14px;">等待轮询...</div>
+          <span style="position:absolute;top:8px;left:8px;background:#7c7cff33;color:#7c7cff;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🖼️ 图片</span>
+          <span style="position:absolute;top:8px;right:8px;background:#3b82f633;color:#3b82f6;padding:2px 8px;border-radius:6px;font-size:11px;">⏳ 等待中</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">gemini-2.5-flash</span>
+            <span style="color:#666;font-size:11px;">刚刚</span>
+          </div>
+          <div style="color:#888;font-size:12px;">已提交到任务中心</div>
+        </div>
+      </div>
+
+      <!-- 卡片6: 视频任务 - 进行中 -->
+      <div style="background:#12121f;border-radius:12px;border:1px solid #1e1e35;overflow:hidden;">
+        <div style="height:140px;background:linear-gradient(135deg,#1a1a2e,#2e1a3e);display:flex;align-items:center;justify-content:center;position:relative;">
+          <div style="width:32px;height:32px;border:3px solid #ec4899;border-top-color:transparent;border-radius:50%;"></div>
+          <span style="position:absolute;top:8px;left:8px;background:#ec489933;color:#ec4899;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;">🎬 视频</span>
+          <span style="position:absolute;top:8px;right:8px;background:#f59e0b33;color:#f59e0b;padding:2px 8px;border-radius:6px;font-size:11px;">生成中 45%</span>
+        </div>
+        <div style="padding:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="color:#e0e0e0;font-size:13px;font-weight:600;">Veo</span>
+            <span style="color:#666;font-size:11px;">3分钟前</span>
+          </div>
+          <div style="background:#1a1a2e;height:4px;border-radius:2px;overflow:hidden;">
+            <div style="width:45%;height:100%;background:linear-gradient(90deg,#ec4899,#f472b6);border-radius:2px;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 底部统计 -->
+    <div style="margin-top:16px;padding:12px;background:#1e1e2e;border-radius:8px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="color:#888;font-size:12px;">共 12 个任务 · 轮询守护线程运行中</span>
+      <div style="display:flex;gap:12px;">
+        <span style="color:#666;font-size:12px;">API Key: sk-***hmU</span>
+        <button style="background:transparent;color:#7c7cff;border:none;font-size:12px;cursor:pointer;">设置</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>

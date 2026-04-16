@@ -2,8 +2,36 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple
+
+BANANA_V3_FIRST_POLL_DELAY = 10.0
+BANANA_V3_SECOND_POLL_AT = 50.0
+BANANA_V3_POLL_INTERVAL = 10.0
+
+
+def compute_banana_v3_followup_delay(
+    *,
+    is_first_followup: bool,
+    suggested_seconds: float = 0.0,
+) -> float:
+    """
+    计算 BananaV3 后续轮询等待时间。
+
+    基线节奏：
+    - 首次轮询：第 10s（由调用方单独控制）
+    - 第二次轮询：第 50s，即首轮询后默认再等 40s
+    - 之后：每 10s 一次
+
+    若服务端给出更大的建议间隔，则遵守更大的值。
+    """
+    baseline = (
+        BANANA_V3_SECOND_POLL_AT - BANANA_V3_FIRST_POLL_DELAY
+        if is_first_followup
+        else BANANA_V3_POLL_INTERVAL
+    )
+    return max(float(baseline), float(suggested_seconds or 0.0))
 
 
 class _ParallelUrlCollector:
@@ -312,3 +340,329 @@ def make_execution_blocker(message: str | None) -> Any:
                 self.message = message
 
         return _FallbackExecutionBlocker(message)
+
+
+# ---------------------------------------------------------------------------
+# 跨节点异步轮询协调器
+# ---------------------------------------------------------------------------
+
+
+class _AsyncPollCoordinator:
+    """
+    跨节点异步轮询协调器。
+
+    工作流并发模式下，多个 V3 节点的 task_id 注册到同一个协调器，
+    由后台单线程统一 batch-get 轮询，结果通过 threading.Event 分发回各节点。
+
+    生命周期：
+    - 首个 V3 节点调用 register() 注册 task_id。
+    - 任意节点调用 start_polling()（幂等），启动后台轮询线程。
+    - 轮询线程持续运行直到所有 pending tasks 完成/失败/超时，或收到 stop 信号。
+    - 各节点通过 evt.wait() 等待自己的结果，完成后调用 unregister() 清理。
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._pending: Dict[str, Tuple[int, threading.Event]] = {}  # task_id -> (batch_idx, event)
+        self._results: Dict[str, dict] = {}  # task_id -> succeeded item
+        self._failures: Dict[str, str] = {}  # task_id -> failure reason
+        self._poll_thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
+        self._started = False
+
+        # 轮询参数（由 start_polling 设置）
+        self._api_client: Any = None
+        self._api_key: str = ""
+        self._base_url: str = ""
+        self._first_poll_delay: float = BANANA_V3_FIRST_POLL_DELAY
+        self._poll_interval: float = BANANA_V3_POLL_INTERVAL
+        self._total_timeout: float = 420.0
+        self._poll_retry_max: int = 3
+        self._interrupt_checker: Optional[Callable[[], None]] = None
+
+    # ------------------------------------------------------------------
+    # 公开 API
+    # ------------------------------------------------------------------
+
+    def register(self, task_id: str, batch_idx: int, callback_event: threading.Event) -> None:
+        """注册一个 task_id 到协调器，附带 threading.Event 用于通知完成。"""
+        with self._lock:
+            self._pending[task_id] = (batch_idx, callback_event)
+
+    def get_result(self, task_id: str) -> Optional[dict]:
+        """获取已完成 task 的 batch-get item。线程安全。"""
+        with self._lock:
+            return self._results.get(task_id)
+
+    def get_failure(self, task_id: str) -> Optional[str]:
+        """获取失败原因。线程安全。"""
+        with self._lock:
+            return self._failures.get(task_id)
+
+    def unregister(self, task_id: str) -> None:
+        """节点取消或完成后清理 task_id。线程安全。"""
+        with self._lock:
+            self._pending.pop(task_id, None)
+            # 保留 results/failures 让 get_result/get_failure 仍可查询
+
+    def is_alive(self) -> bool:
+        """轮询线程是否仍在运行。"""
+        return self._poll_thread is not None and self._poll_thread.is_alive()
+
+    def has_pending(self) -> bool:
+        """是否还有 pending 的 task。"""
+        with self._lock:
+            return len(self._pending) > 0
+
+    def start_polling(
+        self,
+        api_client: Any,
+        api_key: str,
+        base_url: str,
+        first_poll_delay: float,
+        poll_interval: float,
+        total_timeout: float,
+        poll_retry_max: int,
+        interrupt_checker: Optional[Callable[[], None]] = None,
+    ) -> None:
+        """
+        启动后台轮询线程（幂等，只启动一次）。
+
+        参数由第一个调用者设定，后续调用不会覆盖已有的轮询参数。
+        """
+        with self._lock:
+            if self._started:
+                # #3 修复：检测 API Key 不一致时发出警告
+                if self._api_key and api_key and self._api_key != api_key:
+                    try:
+                        from logger import logger as _wlog
+                        _wlog.warning(
+                            "[协调轮询] 检测到不同 API Key 的节点共用同一个协调器，"
+                            "轮询将使用首个节点的 Key。如需隔离，请关闭工作流并发。"
+                        )
+                    except Exception:
+                        pass
+                return
+            self._started = True
+            self._api_client = api_client
+            self._api_key = api_key
+            self._base_url = base_url
+            self._first_poll_delay = first_poll_delay
+            self._poll_interval = poll_interval
+            self._total_timeout = total_timeout
+            self._poll_retry_max = poll_retry_max
+            self._interrupt_checker = interrupt_checker
+            self._stop_event.clear()
+
+        t = threading.Thread(target=self._poll_loop, daemon=True, name="AsyncPollCoordinator")
+        with self._lock:
+            self._poll_thread = t
+        t.start()
+
+    def stop(self) -> None:
+        """请求停止轮询线程。"""
+        self._stop_event.set()
+
+    # ------------------------------------------------------------------
+    # 内部实现
+    # ------------------------------------------------------------------
+
+    def _interruptible_wait(self, seconds: float) -> None:
+        """可中断的等待：以 0.25s 为单位，检查 stop_event 和 interrupt_checker。"""
+        elapsed = 0.0
+        while elapsed < seconds:
+            if self._stop_event.is_set():
+                return
+            if self._interrupt_checker is not None:
+                try:
+                    self._interrupt_checker()
+                except Exception:
+                    self._stop_event.set()
+                    return
+            chunk = min(0.25, seconds - elapsed)
+            time.sleep(chunk)
+            elapsed += chunk
+
+    def _do_batch_get_with_retry(self, task_ids: List[str]) -> Optional[dict]:
+        """带退避重试的 batch-get 调用。"""
+        for retry in range(self._poll_retry_max):
+            try:
+                result = self._api_client.batch_get_tasks(
+                    self._api_key,
+                    task_ids,
+                    self._base_url,
+                )
+                return result
+            except Exception as e:
+                if retry < self._poll_retry_max - 1:
+                    backoff = 2 ** (retry + 1)  # 2s, 4s, 8s
+                    try:
+                        from logger import logger
+                        logger.warning(
+                            f"[协调轮询] batch-get 失败，{backoff}s 后重试: {e}"
+                        )
+                    except Exception:
+                        pass
+                    self._interruptible_wait(backoff)
+                else:
+                    try:
+                        from logger import logger
+                        logger.warning(
+                            f"[协调轮询] batch-get 连续 {self._poll_retry_max} 次失败，跳过本轮"
+                        )
+                    except Exception:
+                        pass
+        return None
+
+    def _cleanup_pending(self, reason: str = "interrupted") -> None:
+        """唤醒所有剩余 pending 等待者，标记为指定原因。"""
+        with self._lock:
+            for tid in list(self._pending.keys()):
+                self._failures[tid] = reason
+                _, evt = self._pending.pop(tid)
+                evt.set()
+
+    def _poll_loop(self) -> None:
+        """后台轮询线程主循环。"""
+        try:
+            from logger import logger as _log
+        except Exception:
+            _log = None  # type: ignore[assignment]
+
+        try:
+            self._poll_loop_inner(_log)
+        except Exception as exc:
+            if _log:
+                _log.warning(f"[协调轮询] 轮询线程异常退出: {exc}")
+        finally:
+            # #8 修复：任何退出路径都唤醒剩余等待者
+            self._cleanup_pending("interrupted")
+            # #9 修复：重置 _started 允许后续 start_polling 重启
+            with self._lock:
+                self._started = False
+
+    def _poll_loop_inner(self, _log) -> None:
+        """轮询主循环内部逻辑。"""
+        # --- 首次轮询延迟 ---
+        if _log:
+            _log.info(f"[协调轮询] 等待 {self._first_poll_delay}s 后开始首次 batch-get")
+        self._interruptible_wait(self._first_poll_delay)
+
+        poll_start = time.time()
+        poll_round = 0
+
+        while not self._stop_event.is_set():
+            # #9 修复：在 lock 内检查 pending 是否为空，防止与 register 竞态
+            with self._lock:
+                current_pending = list(self._pending.keys())
+                if not current_pending:
+                    if _log:
+                        _log.info("[协调轮询] 所有任务已完成，轮询线程退出")
+                    return
+
+            if (time.time() - poll_start) > self._total_timeout:
+                # 超时：标记所有 pending 为失败
+                if _log:
+                    _log.warning(
+                        f"[协调轮询] 全局超时 ({self._total_timeout}s)，"
+                        f"标记剩余 {len(current_pending)} 个任务为超时"
+                    )
+                with self._lock:
+                    for tid in list(self._pending.keys()):
+                        self._failures[tid] = "timeout"
+                        _, evt = self._pending.pop(tid)
+                        evt.set()
+                break
+
+            poll_round += 1
+            elapsed_s = time.time() - poll_start
+            if _log:
+                _log.info(
+                    f"[协调轮询] 第 {poll_round} 轮 | "
+                    f"查询 {len(current_pending)} 个任务 | "
+                    f"已等待 {elapsed_s:.0f}s/{self._total_timeout}s"
+                )
+
+            batch_response = self._do_batch_get_with_retry(current_pending)
+
+            if batch_response:
+                items = batch_response.get("items", [])
+                next_poll_ms = batch_response.get("next_poll_after_ms", 0)
+                round_succeeded = 0
+                round_failed = 0
+                with self._lock:
+                    for item in items:
+                        tid = item.get("id")
+                        if tid not in self._pending:
+                            continue
+                        status = item.get("status", "")
+                        if status == "succeeded":
+                            self._results[tid] = item
+                            _, evt = self._pending.pop(tid)
+                            evt.set()
+                            round_succeeded += 1
+                        elif status in ("failed", "upstream_timeout", "not_found"):
+                            # 保留服务端错误详情（如有），便于排查
+                            error_detail = item.get("error") or item.get("message") or ""
+                            if isinstance(error_detail, dict):
+                                error_detail = error_detail.get("message") or str(error_detail)
+                            fail_reason = f"{status}: {error_detail}" if error_detail else status
+                            self._failures[tid] = fail_reason
+                            if _log and error_detail:
+                                _log.warning(f"[协调轮询] 任务 {tid} 失败: {fail_reason}")
+                            _, evt = self._pending.pop(tid)
+                            evt.set()
+                            round_failed += 1
+                        # running/queued/accepted -> 继续等待
+                    remaining = len(self._pending)
+
+                if _log:
+                    parts = []
+                    if round_succeeded:
+                        parts.append(f"{round_succeeded} 个完成")
+                    if round_failed:
+                        parts.append(f"{round_failed} 个失败")
+                    parts.append(f"{remaining} 个等待中")
+                    _log.info(f"[协调轮询] 第 {poll_round} 轮结果: {', '.join(parts)}")
+
+                # 检查是否全部完成
+                if remaining == 0:
+                    if _log:
+                        _log.info(f"[协调轮询] 全部任务已完成（共 {poll_round} 轮，耗时 {elapsed_s:.0f}s）")
+                    break
+
+                next_poll = compute_banana_v3_followup_delay(
+                    is_first_followup=(poll_round == 1),
+                    suggested_seconds=next_poll_ms / 1000,
+                )
+            else:
+                next_poll = compute_banana_v3_followup_delay(
+                    is_first_followup=(poll_round == 1),
+                )
+
+            self._interruptible_wait(next_poll)
+
+
+_ASYNC_POLL_COORDINATOR: Optional[_AsyncPollCoordinator] = None
+_ASYNC_POLL_COORDINATOR_LOCK = threading.Lock()
+
+
+def get_async_poll_coordinator() -> _AsyncPollCoordinator:
+    """
+    获取或创建进程级轮询协调器。
+
+    重建条件：协调器曾被启动过（_started == True），但轮询线程已退出且无 pending 任务。
+    首次调用或协调器尚未启动时，直接复用已有实例。
+    """
+    global _ASYNC_POLL_COORDINATOR
+    with _ASYNC_POLL_COORDINATOR_LOCK:
+        if _ASYNC_POLL_COORDINATOR is None:
+            _ASYNC_POLL_COORDINATOR = _AsyncPollCoordinator()
+        elif (
+            not _ASYNC_POLL_COORDINATOR.is_alive()
+            and not _ASYNC_POLL_COORDINATOR.has_pending()
+            and _ASYNC_POLL_COORDINATOR._poll_thread is not None
+        ):
+            # 上一轮已结束（线程曾启动过但已退出），创建新实例
+            _ASYNC_POLL_COORDINATOR = _AsyncPollCoordinator()
+        return _ASYNC_POLL_COORDINATOR
