@@ -53,7 +53,7 @@ jobs:
             os.chmod(path, stat.S_IWRITE)
             func(path)
         
-        DIRS_TO_REMOVE = {'build', '.agent', '.git', '.vscode', '.idea', '.serena', '.test', '.doc', 'openspec', '__pycache__', 'dist', 'tests'}
+        DIRS_TO_REMOVE = {'build', '.agent', '.git', '.vscode', '.idea', '.serena', '.superpowers', '.test', '.doc', 'openspec', '__pycache__', 'dist', 'tests'}
         DIRS_TO_SKIP = {'sam_hq', '.github'}
         FILES_TO_KEEP = {'setup.py', '__init__.py', 'loader_bootstrap.py', 'blendmodes.py', 'imagefunc.py', 'requirements.txt', 'workflow_parallel.py', 'video_task_manager.py'}
         
