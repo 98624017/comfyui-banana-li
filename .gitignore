@@ -64,7 +64,6 @@ test_checklist.md
 CLAUDE.md
 # 日志文件
 *.log
-openspec/
 # 其他临时文件
 CON
 .pytest_cache/
