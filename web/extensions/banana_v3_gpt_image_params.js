@@ -13,6 +13,12 @@ const NOTICE_MAX_LINES = 2;
 
 const GEMINI_WIDGETS = ["aspect_ratio", "image_size", "top_p", "联网搜索"];
 const GPT_WIDGETS = ["size", "custom_width", "custom_height", "quality"];
+const GPT_WIDGET_DEFAULTS = {
+  size: "auto",
+  custom_width: 0,
+  custom_height: 0,
+  quality: "medium",
+};
 
 const MIN_PIXELS = 655360;
 const MAX_PIXELS = 8294400;
@@ -174,6 +180,16 @@ function setWidgetValue(widget, value) {
   if (widget.domEl) widget.domEl.value = value;
 }
 
+function normalizeGptWidgetDefaults(node) {
+  for (const [name, defaultValue] of Object.entries(GPT_WIDGET_DEFAULTS)) {
+    const widget = findWidget(node, name);
+    if (!widget) continue;
+    if (widget.value === null || widget.value === undefined || widget.value === "") {
+      setWidgetValue(widget, defaultValue);
+    }
+  }
+}
+
 function clampCustomSize(node) {
   const widthWidget = findWidget(node, "custom_width");
   const heightWidget = findWidget(node, "custom_height");
@@ -198,6 +214,7 @@ function updateWidgets(node) {
   const modelWidget = findWidget(node, "model_type");
   const isGpt = GPT_MODELS.has(String(modelWidget?.value || ""));
   const noticeWidget = ensureNoticeWidget(node);
+  normalizeGptWidgetDefaults(node);
 
   for (const name of GEMINI_WIDGETS) {
     const widget = findWidget(node, name);
