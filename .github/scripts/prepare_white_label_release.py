@@ -90,6 +90,7 @@ RELEASE_TEXT_EXCLUDED_DIRS = {
 }
 
 SOURCE_TEXT_REPLACEMENTS = {
+    "心宝♥": "香蕉",
     "心宝❤": "香蕉",
     "心宝": "香蕉",
     "新宝": "香蕉",
@@ -128,13 +129,13 @@ def _rewrite_token_balance(root: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = _replace_or_keep_updated(
         text,
-        'const WECHAT_ID = "Li_18727107073";\nconst QR_IMAGE_URL = new URL("./xinbao.png", import.meta.url).toString();\nconst ACTION_BUTTON_DEFS = [\n  { key: "wechat", label: "兑换积分" },\n  { key: "query", label: "查询余额" },\n  { key: "qr", label: "二维码" },\n];',
+        'const WECHAT_ID = "Li_18727107073";\nconst QR_IMAGE_URL = new URL("./xinbao.jpg", import.meta.url).toString();\nconst ACTION_BUTTON_DEFS = [\n  { key: "wechat", label: "兑换积分\\n明细查询" },\n  { key: "query", label: "余额查询\\n1R=60积分" },\n  { key: "qr", label: "获取积分\\n领取试用" },\n];',
         'const WECHAT_ID = "";\nconst QR_IMAGE_URL = "";\nconst ACTION_BUTTON_DEFS = [\n  { key: "query", label: "查询余额" },\n];',
         path=path,
     )
     text = _replace_or_keep_updated(
         text,
-        '  title.textContent = "添加UP主购买Key";',
+        '  title.textContent = `添加UP主微信：${WECHAT_ID}\\n进行购买领取试用`;',
         '  title.textContent = "当前版本未提供二维码";',
         path=path,
     )
@@ -170,15 +171,16 @@ def _rewrite_token_balance(root: Path) -> None:
     )
     text = _replace_or_keep_updated(
         text,
-        '    buttonMap.wechat.onClick = () => {\n      window.open("https://buy.xinbaoapi.dpdns.org", "_blank");\n    };\n    buttonMap.query.onClick = () => {\n      void queryBalance(node);\n    };\n    buttonMap.qr.onClick = () => {\n      showQrOverlay();\n    };',
+        '    buttonMap.wechat.onClick = () => {\n      window.open("https://task.xinbao-ai.com", "_blank", "noopener,noreferrer");\n    };\n    buttonMap.query.onClick = () => {\n      void queryBalance(node);\n    };\n    buttonMap.qr.onClick = () => {\n      showQrOverlay();\n    };',
         '    if (buttonMap.query) {\n      buttonMap.query.onClick = () => {\n        void queryBalance(node);\n      };\n    }',
         path=path,
     )
     path.write_text(text, encoding="utf-8")
 
-    qr_path = root / "web/extensions/xinbao.png"
-    if qr_path.exists():
-        qr_path.unlink()
+    for qr_name in ("xinbao.jpg", "xinbao.png"):
+        qr_path = root / "web/extensions" / qr_name
+        if qr_path.exists():
+            qr_path.unlink()
 
 
 def _rewrite_init(root: Path) -> None:
@@ -284,16 +286,17 @@ def check_white_label_release(root: Path) -> list[str]:
 
     if (root / "example_workflows").exists():
         errors.append("example_workflows 目录仍然存在")
-    if (root / "web/extensions/xinbao.png").exists():
-        errors.append("web/extensions/xinbao.png 仍然存在")
+    for qr_name in ("xinbao.jpg", "xinbao.png"):
+        if (root / "web/extensions" / qr_name).exists():
+            errors.append(f"web/extensions/{qr_name} 仍然存在")
     for path in root.glob("*.json"):
         if _is_root_comfyui_workflow_json(path):
-            errors.append(f"{path.relative_to(root)} 仍然存在 ComfyUI 工作流 JSON")
+            errors.append(f"{path.relative_to(root).as_posix()} 仍然存在 ComfyUI 工作流 JSON")
 
     for path in _iter_release_text_files(root):
         content = path.read_text(encoding="utf-8")
         if "心宝" in content or "新宝" in content:
-            errors.append(f"{path.relative_to(root)} 仍包含未替换的中文品牌词")
+            errors.append(f"{path.relative_to(root).as_posix()} 仍包含未替换的中文品牌词")
     return errors
 
 

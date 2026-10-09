@@ -2,7 +2,6 @@ import { app } from "/scripts/app.js";
 
 const EXTENSION = "banana.bananaV3GptImageParams";
 const TARGET_NODE = "BananaImageNodeV3";
-const GPT_MODELS = new Set(["gpt-image-2", "gpt-image-2-oai"]);
 const BANANA_V3_MIN_NODE_WIDTH = 336;
 const GPT_IMAGE_NOTICE = "gpt-image-2 非 OAI 版为逆向渠道，quality 参数无效，大于 2K 像素可能非原生。推荐使用 gpt-image-2-oai 满参数版。";
 const NOTICE_WIDGET_NAME = "banana-gpt-image-notice";
@@ -13,6 +12,23 @@ const NOTICE_MAX_LINES = 2;
 
 const GEMINI_WIDGETS = ["aspect_ratio", "image_size", "top_p", "联网搜索"];
 const GPT_WIDGETS = ["size", "custom_width", "custom_height", "quality"];
+const PARAMETER_WIDGET_ORDER = [
+  // 各模型的主尺寸选项固定在 batch_size 后的同一个位置。
+  "aspect_ratio",
+  "size",
+  "custom_width",
+  "custom_height",
+  "quality",
+  "seed",
+  "生成后控制",
+  "top_p",
+  "image_size",
+  "线路",
+  "联网搜索",
+  "启用工作流并发",
+  "大于5M限制长边",
+  "仅提交不等待",
+];
 const GPT_WIDGET_DEFAULTS = {
   size: "auto",
   custom_width: 0,
@@ -27,6 +43,31 @@ const MAX_RATIO = 3;
 
 function findWidget(node, name) {
   return node.widgets?.find((w) => w?.name === name);
+}
+
+function isGptImageModel(model) {
+  return String(model || "").trim().toLowerCase().startsWith("gpt-image-");
+}
+
+function normalizeParameterWidgetOrder(node) {
+  if (!Array.isArray(node.widgets)) return;
+  const orderedNames = new Set(PARAMETER_WIDGET_ORDER);
+  const widgetsByName = new Map(
+    node.widgets
+      .filter((widget) => orderedNames.has(widget?.name))
+      .map((widget) => [widget.name, widget])
+  );
+  if (widgetsByName.size === 0) return;
+
+  // 只移动参数区控件，保留提示词、图片输入、余额及操作按钮的既有位置。
+  const remainingWidgets = node.widgets.filter((widget) => !orderedNames.has(widget?.name));
+  node.widgets.splice(0, node.widgets.length, ...remainingWidgets);
+  const batchIndex = node.widgets.findIndex((widget) => widget?.name === "batch_size");
+  const insertIndex = batchIndex >= 0 ? batchIndex + 1 : node.widgets.length;
+  const orderedWidgets = PARAMETER_WIDGET_ORDER
+    .map((name) => widgetsByName.get(name))
+    .filter(Boolean);
+  node.widgets.splice(insertIndex, 0, ...orderedWidgets);
 }
 
 function wrapText(ctx, text, maxWidth) {
@@ -212,7 +253,7 @@ function getNodeSize(node) {
 
 function updateWidgets(node) {
   const modelWidget = findWidget(node, "model_type");
-  const isGpt = GPT_MODELS.has(String(modelWidget?.value || ""));
+  const isGpt = isGptImageModel(modelWidget?.value);
   const noticeWidget = ensureNoticeWidget(node);
   normalizeGptWidgetDefaults(node);
 
@@ -231,6 +272,7 @@ function updateWidgets(node) {
   }
 
   if (isGpt) clampCustomSize(node);
+  normalizeParameterWidgetOrder(node);
   noticeWidget.hidden = !isGpt;
   moveWidgetToEnd(node, noticeWidget);
   // V3 追加了余额操作按钮，默认宽度需至少完整容纳按钮行。
@@ -266,7 +308,31 @@ app.registerExtension({
     const onCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const result = onCreated?.apply(this, arguments);
+      this.__bananaV3InitialWidgetOrder = this.widgets?.map((widget) => widget.name) || [];
       enhance(this);
+      return result;
+    };
+
+    // widgets_values 按位置保存：加载旧工作流先恢复旧顺序，再做 UI 重排。
+    const configure = nodeType.prototype.configure;
+    nodeType.prototype.configure = function (data) {
+      const savedOrder = data?.properties?.bananaV4WidgetOrder;
+      const order = Array.isArray(savedOrder) ? savedOrder : this.__bananaV3InitialWidgetOrder;
+      if (Array.isArray(this.widgets) && Array.isArray(order)) {
+        const positions = new Map(order.map((name, index) => [name, index]));
+        this.widgets.sort((a, b) =>
+          (positions.get(a.name) ?? Infinity) - (positions.get(b.name) ?? Infinity));
+      }
+      return configure?.apply(this, arguments);
+    };
+
+    const onSerialize = nodeType.prototype.onSerialize;
+    nodeType.prototype.onSerialize = function (data) {
+      const result = onSerialize?.apply(this, arguments);
+      data.properties = {
+        ...data.properties,
+        bananaV4WidgetOrder: this.widgets?.map((widget) => widget.name) || [],
+      };
       return result;
     };
 

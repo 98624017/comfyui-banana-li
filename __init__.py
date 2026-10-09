@@ -151,6 +151,10 @@ SKIP_MODULES = {
     "reproduce_issue_ms",
     "reproduce_toml_issue",
     "poll_manual",
+    # 已迁出本仓库的节点，避免旧安装中的编译产物重新注册。
+    "snippet_manager",
+    "xinbao_psd_tool",
+    "xinbao_one_click_sell",  # 开发功能仅保存在 feature/one-click-sell，屏蔽旧编译产物
 }
 
 # 不应被编译的模块（含 generator/async generator），删除旧编译产物防止遮蔽 .py 源码

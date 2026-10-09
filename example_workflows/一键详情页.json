@@ -416,47 +416,6 @@
       ]
     },
     {
-      "id": 51,
-      "type": "XinbaoApiKeyPurge",
-      "pos": [
-        -18.776665380018006,
-        -447.8682541027804
-      ],
-      "size": [
-        315.44140625,
-        120
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "status",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-banana-li",
-        "ver": "354a94183f5abbd6aea31990a5e5a5bf56e3bd40",
-        "Node name for S&R": "XinbaoApiKeyPurge",
-        "aux_id": "98624017/comfyui-banana-li",
-        "ue_properties": {
-          "widget_ue_connectable": {
-            "banana_global_api_key": true,
-            "modelscope_global_api_key": true
-          },
-          "version": "7.0.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        "sk-FWQJqko4PLRXYQrWtcRLfJyFPdVKRtXbOCXslHo11Ksw5Nf0",
-        ""
-      ]
-    },
-    {
       "id": 60,
       "type": "ShowText|pysssss",
       "pos": [

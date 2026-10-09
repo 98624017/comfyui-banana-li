@@ -1,0 +1,10 @@
+[gemini]
+# Copy this file to config.ini and fill keys locally. config.ini is ignored by Git.
+api_key =
+modelscope_api_key =
+max_workers = 8
+network_workers_cap = 4
+
+[imagebed]
+# 可选：自建 imagebed 上传代理的 Bearer 密钥。也可通过 BANANA_IMAGEBED_API_KEY 环境变量设置。
+api_key =
