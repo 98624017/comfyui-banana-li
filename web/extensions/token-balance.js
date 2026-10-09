@@ -4,21 +4,19 @@ import { api } from "/scripts/api.js";
 const EXTENSION = "banana.tokenBalance";
 const TARGET_NODES = new Set(["BananaImageNode", "BananaImageNodeV2", "BananaImageNodeV3"]);
 const WECHAT_ID = "Li_18727107073";
-const QR_IMAGE_URL = new URL("./xinbao.png", import.meta.url).toString();
+const QR_IMAGE_URL = new URL("./xinbao.jpg", import.meta.url).toString();
 const ACTION_BUTTON_DEFS = [
-  { key: "wechat", label: "兑换积分" },
-  { key: "query", label: "查询余额" },
-  { key: "qr", label: "二维码" },
+  { key: "wechat", label: "兑换积分\n明细查询" },
+  { key: "query", label: "余额查询\n1R=60积分" },
+  { key: "qr", label: "获取积分\n领取试用" },
 ];
 const BUTTON_FEEDBACK_MS = 1600;
 const liteGraphGlobal = typeof globalThis !== "undefined" ? globalThis.LiteGraph : undefined;
 const POINTER_DOWN_EVENT = `${(liteGraphGlobal && liteGraphGlobal.pointerevents_method) || "pointer"}down`;
-const BUTTON_ROW_HEIGHT = (liteGraphGlobal && liteGraphGlobal.NODE_WIDGET_HEIGHT) || 20;
+const BUTTON_ROW_HEIGHT = Math.max((liteGraphGlobal && liteGraphGlobal.NODE_WIDGET_HEIGHT) || 20, 38);
 const BUTTON_ROW_MARGIN = 14;
 const BUTTON_ROW_GAP = 8;
 const MIN_BUTTON_WIDTH = 78;
-const CLEANER_CLASS = "XinbaoApiKeyPurge";
-const CLEANER_FIELD_BANANA = "banana_global_api_key";
 
 let qrOverlay;
 
@@ -52,14 +50,16 @@ function ensureQrOverlay() {
   `;
 
   const title = document.createElement("div");
-  title.textContent = "添加UP主购买Key";
+  title.textContent = `添加UP主微信：${WECHAT_ID}\n进行购买领取试用`;
   title.style.fontSize = "16px";
   title.style.fontWeight = "600";
+  title.style.whiteSpace = "pre-line";
+  title.style.textAlign = "center";
 
   const img = document.createElement("img");
   img.src = QR_IMAGE_URL;
   img.alt = "UP主二维码";
-  img.style.cssText = "width: 240px; height: 240px; object-fit: contain; border-radius: 8px; background: #fff; padding: 8px;";
+  img.style.cssText = "width: 280px; height: auto; max-height: 70vh; object-fit: contain; border-radius: 8px; background: #fff; padding: 8px;";
   img.addEventListener("error", () => {
     img.alt = "二维码加载失败，请手动复制微信号";
     img.style.background = "#2b2b2b";
@@ -151,12 +151,19 @@ function createActionWidget(node) {
     name: "banana-actions",
     type: "banana-actions",
     buttons,
-    draw(ctx, _, widgetWidth, y, height) {
-      const layout = computeButtonLayout(widgetWidth, this.buttons.length, height);
+    draw(ctx, _, widgetWidth, y, _height) {
+      // LiteGraph 仍可能把单行 NODE_WIDGET_HEIGHT 传给 draw；双行按钮必须
+      // 使用自身声明的高度绘制，否则背景只有一行高而第二行文字会溢出。
+      // LiteGraph 传入的 widgetWidth 在节点缩放后可能仍是旧值；以节点当前
+      // 宽度为准，确保整组按钮始终在可见节点中居中。
+      const rowWidth = Math.max(Number(widgetWidth) || 0, Number(node?.size?.[0]) || 0);
+      const layout = computeButtonLayout(rowWidth, this.buttons.length, BUTTON_ROW_HEIGHT);
       this.__layout = layout;
       const previousFont = ctx.font;
       const previousAlign = ctx.textAlign;
+      const previousBaseline = ctx.textBaseline;
       ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
       ctx.font = "12px sans-serif";
       this.buttons.forEach((button, index) => {
         const rect = layout.rects[index];
@@ -172,10 +179,16 @@ function createActionWidget(node) {
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = isDisabled ? "#979797" : "#f5f5f5";
-        ctx.fillText(button.feedbackLabel || button.label, rect.x + rect.width / 2, y + rect.height * 0.65);
+        const lines = String(button.feedbackLabel || button.label).split("\n");
+        const lineHeight = 14;
+        const firstLineY = y + rect.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+        lines.forEach((line, lineIndex) => {
+          ctx.fillText(line, rect.x + rect.width / 2, firstLineY + lineIndex * lineHeight);
+        });
       });
       ctx.font = previousFont;
       ctx.textAlign = previousAlign;
+      ctx.textBaseline = previousBaseline;
     },
     computeSize(widgetWidth) {
       return [widgetWidth, BUTTON_ROW_HEIGHT + 4];
@@ -253,7 +266,7 @@ function ensureWidgets(node) {
       actionButtonMap: buttonMap,
     };
     buttonMap.wechat.onClick = () => {
-      window.open("https://buy.xinbaoapi.dpdns.org", "_blank");
+      window.open("https://task.xinbao-ai.com", "_blank", "noopener,noreferrer");
     };
     buttonMap.query.onClick = () => {
       void queryBalance(node);
@@ -272,10 +285,6 @@ function getApiKey(node) {
     node.widgets?.find((w) => w.name === "api_key");
   if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
     return widget.value.trim();
-  }
-  const globalKey = getGlobalBananaKey();
-  if (globalKey) {
-    return globalKey;
   }
   return "";
 }
@@ -302,22 +311,6 @@ function getRouteChoice(node) {
     return "";
   }
   return widget.value.trim();
-}
-
-function getGlobalBananaKey() {
-  const graph = app?.graph;
-  if (!graph) {
-    return "";
-  }
-  // 复用“心宝密钥管理”节点的全局密钥，节点留空时也能查询余额
-  const nodes = graph.findNodesByType?.(CLEANER_CLASS) || graph.nodes || [];
-  for (const node of nodes) {
-    const widget = node?.widgets?.find?.((w) => w.name === CLEANER_FIELD_BANANA);
-    if (widget && typeof widget.value === "string" && widget.value.trim().length > 0) {
-      return widget.value.trim();
-    }
-  }
-  return "";
 }
 
 function formatSummary(data) {

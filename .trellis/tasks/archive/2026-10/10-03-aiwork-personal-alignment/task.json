@@ -1,0 +1,33 @@
+{
+  "id": "aiwork-personal-alignment",
+  "name": "aiwork-personal-alignment",
+  "title": "AIwork_Personal 功能对齐与流式 LLM",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": "Caption仅保留两款Gemini并流式化；移除旧Sora/Veo/豆包视频节点并按参考项目重建视频模型；图片模型对齐；迁移一键主图V4/一键详情V4的prompt与分段解析；追加提示词内置并移除托管TOML；回归验证和文档",
+  "package": null,
+  "priority": "P2",
+  "creator": "Codex",
+  "assignee": "Codex",
+  "createdAt": "2026-10-03",
+  "completedAt": "2026-10-04",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "10-03-image-model-alignment",
+    "10-03-capability-model-matrix",
+    "10-03-alignment-validation-docs",
+    "10-03-caption-streaming-llm",
+    "10-03-video-model-alignment",
+    "10-04-workflow-v4-builtin-prompts"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}

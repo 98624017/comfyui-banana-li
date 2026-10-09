@@ -1,529 +1,193 @@
 import { app } from "/scripts/app.js";
 
-// DEBUG: 确认扩展是否加载
-// window.alert("Banana Purge Extension Loaded v5 (Debug Enabled)");
+const EXTENSION = "banana.globalKeyWorkflowGuard";
+const API_TASKS = "/banana/video_tasks";
+const KEY_FIELD = "banana_api_key";
+const KEY_INPUT_LABEL = "输入Key （推荐在右下角任务中心设置）";
+const KEY_RECOMMENDATION = "推荐在右下角“心宝任务中心”输入全局 Key";
+const TARGET_CLASSES = new Set([
+  "BananaImageNode",
+  "BananaImageNodeV2",
+  "BananaImageNodeV3",
+  "XinbaoBatchDetailImageSaver",
+  "XinbaoVideoGenerator",
+  "XinbaoUnifiedVideoGenerator",
+  "XinbaoDoubaoVideoGenerator",
+  "XinbaoVeoVideoGenerator",
+  "XinbaoComfyApiApp",
+  "XinbaoModelScopeCaption",
+]);
 
-const EXTENSION = "banana.apiKeyPurge";
-const CLEANER_CLASS = "XinbaoApiKeyPurge";
-const CHANNEL_BANANA = "香蕉同款渠道(旧渠道)";
-const CHANNEL_MODAO = "魔搭社区";
-const TARGETS = [
-  { className: "BananaImageNode", fields: ["banana_api_key"] },
-  { className: "BananaImageNodeV2", fields: ["banana_api_key"] },
-  { className: "BananaImageNodeV3", fields: ["banana_api_key"] },
-  { className: "XinbaoBatchDetailImageSaver", fields: ["banana_api_key"] },
-  { className: "XinbaoVideoGenerator", fields: ["banana_api_key"] },
-  { className: "XinbaoDoubaoVideoGenerator", fields: ["banana_api_key"] },
-  { className: "XinbaoVeoVideoGenerator", fields: ["banana_api_key"] },
-  { className: "XinbaoComfyApiApp", fields: ["banana_api_key"] },
-  {
-    className: "XinbaoModelScopeImageGenerate",
-    fields: ["modelscope_api_key"],
-  },
-  { className: "XinbaoModelScopeImageEdit", fields: ["api_key"] },
-  {
-    className: "XinbaoModelScopeCaption",
-    fields: ["banana_api_key", "modelscope_api_key"],
-  },
-];
-const CLEANER_FIELDS = {
-  banana: "banana_global_api_key",
-  modao: "modelscope_global_api_key",
-};
+let globalKeyConfigured = false;
 
 function findWidget(node, name) {
   if (!node) return null;
   if (Array.isArray(node.widgets)) {
-    const hit = node.widgets.find((widget) => widget?.name === name);
-    if (hit) return hit;
+    const widget = node.widgets.find((item) => item?.name === name);
+    if (widget) return widget;
   }
   if (Array.isArray(node.inputs)) {
-    for (const input of node.inputs) {
-      if (input?.name === name && input.widget) {
-        return input.widget;
-      }
-    }
+    const input = node.inputs.find((item) => item?.name === name);
+    if (input?.widget) return input.widget;
   }
   return null;
 }
 
-function stripLegacyAutoCleanWidget(node) {
-  if (!node || !Array.isArray(node.widgets)) return;
-  const idx = node.widgets.findIndex((w) => w?.name === "导出时清除apikey");
-  if (idx >= 0) {
-    node.widgets.splice(idx, 1);
-    markDirty(node);
+function clearWidget(node, name) {
+  const widget = findWidget(node, name);
+  if (!widget || typeof widget.value !== "string" || !widget.value.trim()) {
+    return false;
   }
-}
-
-function isEmptyValue(value) {
-  return typeof value !== "string" || value.trim().length === 0;
-}
-
-function setWidgetValue(widget, value) {
-  if (!widget) return false;
-  if (widget.value === value) return false;
-  widget.value = value;
-  if (widget.inputEl) {
-    widget.inputEl.value = value;
+  widget.value = "";
+  for (const element of [widget.inputEl, widget.domEl, widget.element]) {
+    if (element) element.value = "";
   }
-  if (widget.domEl) {
-    widget.domEl.value = value;
+  try {
+    widget.callback?.("");
+  } catch (error) {
+    console.warn(`[${EXTENSION}] Key widget callback failed`, error);
   }
-  if (widget.element) {
-    widget.element.value = value;
-  }
-  if (widget.callback) {
-    try {
-      widget.callback(widget.value);
-    } catch (e) {
-      console.warn(`[${EXTENSION}] Widget callback failed`, e);
-    }
-  }
+  node?.graph?.setDirtyCanvas(true, true);
   return true;
 }
 
-function markDirty(node) {
-  node?.graph?.setDirtyCanvas(true);
-  app?.graph?.setDirtyCanvas(true, true);
+function nodeClassName(node) {
+  return node?.comfyClass || node?.type || node?.constructor?.type || "";
+}
+
+function decorateKeyWidget(node) {
+  if (!TARGET_CLASSES.has(nodeClassName(node))) return;
+  const widget = findWidget(node, KEY_FIELD);
+  if (!widget) return;
+  widget.label = KEY_INPUT_LABEL;
+  widget.tooltip = KEY_RECOMMENDATION;
+  widget.options = { ...(widget.options || {}), tooltip: KEY_RECOMMENDATION };
+  for (const element of [widget.inputEl, widget.domEl, widget.element]) {
+    if (!element) continue;
+    element.placeholder = KEY_RECOMMENDATION;
+    element.title = KEY_RECOMMENDATION;
+  }
 }
 
 function findNodesByClassName(className) {
+  const root = app?.graph?.rootGraph || app?.graph;
+  if (!root) return [];
+  // ComfyUI 把所有层级的原生子图集中保存在根图的 Map 中。
+  const subgraphs = root.subgraphs || root._subgraphs;
+  const graphs = [root, ...(subgraphs?.values?.() || [])];
   const seen = new Set();
-  const results = [];
+  const result = [];
+  const add = (node) => {
+    if (!node || seen.has(node)) return;
+    seen.add(node);
+    result.push(node);
+  };
+  for (const graph of graphs) {
+    for (const node of graph.findNodesByClass?.(className) || []) add(node);
+    for (const node of graph.findNodesByType?.(className) || []) add(node);
+    for (const node of graph._nodes || graph.nodes || []) {
+      if (nodeClassName(node) === className) add(node);
+    }
+  }
+  return result;
+}
+
+function clearLinkedPrimitive(node) {
+  const graph = node?.graph || app?.graph;
+  const visited = new Set();
+  const visitInput = (input) => {
+    if (input?.link == null || !graph?.links) return;
+    const link = graph.links[input.link];
+    const source = link ? graph.getNodeById?.(link.origin_id) : null;
+    if (!source || visited.has(source)) return;
+    visited.add(source);
+    if (nodeClassName(source) === "Reroute") {
+      visitInput(source.inputs?.[0]);
+      return;
+    }
+    // 生成节点也可能接入 Key 输入，不能清空它们的提示词或其它参数。
+    if (nodeClassName(source) === "PrimitiveNode") clearWidget(source, "value");
+  };
+
+  const input = node?.inputs?.find((item) => item?.name === KEY_FIELD);
+  visitInput(input);
+}
+
+function clearNodeKey(node) {
+  if (!TARGET_CLASSES.has(nodeClassName(node))) return;
+  decorateKeyWidget(node);
+  clearWidget(node, KEY_FIELD);
+  clearLinkedPrimitive(node);
+}
+
+function decorateAllKeyWidgets() {
+  for (const className of TARGET_CLASSES) {
+    for (const node of findNodesByClassName(className)) decorateKeyWidget(node);
+  }
+  app?.graph?.setDirtyCanvas(true, true);
+}
+
+function clearAllWorkflowKeys() {
+  for (const className of TARGET_CLASSES) {
+    for (const node of findNodesByClassName(className)) clearNodeKey(node);
+  }
+  app?.graph?.setDirtyCanvas(true, true);
+}
+
+function installWorkflowSerializationGuard() {
   const graph = app?.graph;
-  if (!graph) return results;
-
-  if (app?.graph?.findNodesByClass) {
-    const hits = app.graph.findNodesByClass(className) || [];
-    hits.forEach((n) => {
-      if (n && !seen.has(n.id)) {
-        seen.add(n.id);
-        results.push(n);
-      }
-    });
-  }
-
-  if (app?.graph?.findNodesByType) {
-    const hits = app.graph.findNodesByType(className) || [];
-    hits.forEach((n) => {
-      if (n && !seen.has(n.id)) {
-        seen.add(n.id);
-        results.push(n);
-      }
-    });
-  }
-
-  // 手动遍历兜底，兼容未暴露查找 API 的版本
-  const nodesArray = graph._nodes || graph.nodes || [];
-  nodesArray.forEach((n) => {
-    const type = n?.type || n?.comfyClass || n?.constructor?.type;
-    if (type === className && !seen.has(n.id)) {
-      seen.add(n.id);
-      results.push(n);
-    }
-  });
-
-  return results;
-}
-
-function collectCleanerNodes() {
-  return findNodesByClassName(CLEANER_CLASS);
-}
-
-function readGlobalKeys() {
-  const cleaners = collectCleanerNodes();
-  let bananaKey = "";
-  let modaoKey = "";
-
-  cleaners.forEach((node) => {
-    const bananaWidget = findWidget(node, CLEANER_FIELDS.banana);
-    const modaoWidget = findWidget(node, CLEANER_FIELDS.modao);
-
-    if (!bananaKey && bananaWidget && typeof bananaWidget.value === "string") {
-      bananaKey = bananaWidget.value.trim();
-    }
-    if (!modaoKey && modaoWidget && typeof modaoWidget.value === "string") {
-      modaoKey = modaoWidget.value.trim();
-    }
-  });
-
-  return { bananaKey, modaoKey };
-}
-
-function clearNodeWidget(node, widgetOrName) {
-  if (!node) return false;
-  let widget = widgetOrName;
-  if (typeof widgetOrName === "string") {
-    widget = findWidget(node, widgetOrName);
-  }
-  // 如果是 Primitive Node，通常只有一个主 widget，尝试获取它
-  if (!widget && node.widgets && node.widgets.length > 0) {
-    if (node.type === "PrimitiveNode" || node.comfyClass === "PrimitiveNode") {
-      widget = node.widgets[0];
-    }
-  }
-
-  if (widget) {
-    // 即使值为空也尝试清除，以防 UI 状态不同步
-    const oldValue = widget.value;
-    // console.log(`[${EXTENSION}] Inspecting widget ${widget.name} on ${node.type}. Value:`, oldValue);
-
-    if (!isEmptyValue(oldValue)) {
-      console.log(
-        `[${EXTENSION}] Clearing widget ${widget.name} on node ${node.id} (${node.type})`,
-      );
-      widget.value = "";
-
-      // 关键修复：同时更新 DOM 元素
-      if (widget.inputEl) {
-        widget.inputEl.value = "";
-      }
-      if (widget.domEl) {
-        // 某些自定义 Widget 可能用这个
-        widget.domEl.value = "";
-      }
-      if (widget.element) {
-        // 某些 LiteGraph Widget
-        widget.element.value = "";
-      }
-
-      // 触发回调
-      if (widget.callback) {
-        try {
-          widget.callback(widget.value);
-        } catch (e) {
-          console.warn(`[${EXTENSION}] Widget callback failed`, e);
-        }
-      }
-      return true;
-    }
-  }
-  return false;
-}
-
-function findUpstreamNodes(node, inputName) {
-  const upstreamNodes = [];
-  if (!node || !node.inputs) return upstreamNodes;
-
-  const input = node.inputs.find((i) => i.name === inputName);
-  if (!input || !input.link) return upstreamNodes;
-
-  const linkId = input.link;
-  const graph = app.graph;
-  if (!graph || !graph.links) return upstreamNodes;
-
-  const link = graph.links[linkId];
-  if (!link) return upstreamNodes;
-
-  const originNode = graph.getNodeById(link.origin_id);
-  if (originNode) {
-    upstreamNodes.push(originNode);
-    // 递归查找：如果源节点是 Reroute，继续向上找
-    if (originNode.type === "Reroute" || originNode.comfyClass === "Reroute") {
-      if (originNode.inputs && originNode.inputs.length > 0) {
-        const firstInput = originNode.inputs[0];
-        upstreamNodes.push(...findUpstreamNodes(originNode, firstInput.name));
-      }
-    }
-  }
-  return upstreamNodes;
-}
-
-function clearTargets(includeCleaners = true, options = {}) {
-  if (typeof includeCleaners === "object") {
-    options = includeCleaners;
-    includeCleaners = true;
-  }
-  const silent = options?.silent === true;
-  if (!app?.graph) return;
-  let changed = false;
-  let clearedCount = 0;
-
-  if (!silent) {
-    console.log(`[${EXTENSION}] Starting API Key purge...`);
-  }
-
-  TARGETS.forEach((target) => {
-    const nodes = findNodesByClassName(target.className);
-    nodes.forEach((node) => {
-      let nodeChanged = false;
-      target.fields.forEach((field) => {
-        // 1. 清除节点自身的 Widget
-        if (clearNodeWidget(node, field)) {
-          nodeChanged = true;
-          clearedCount++;
-        }
-
-        // 2. 追踪并清除上游节点 (如 PrimitiveNode)
-        const upstreamNodes = findUpstreamNodes(node, field);
-        upstreamNodes.forEach((upstreamNode) => {
-          if (upstreamNode.widgets) {
-            upstreamNode.widgets.forEach((w) => {
-              // 放宽检查：只要是字符串且非空，就尝试清除
-              if (typeof w.value === "string" && w.value.trim().length > 0) {
-                if (clearNodeWidget(upstreamNode, w)) {
-                  nodeChanged = true;
-                  markDirty(upstreamNode);
-                  clearedCount++;
-                }
-              }
-            });
-          }
-        });
-      });
-
-      if (nodeChanged) {
-        markDirty(node);
-      }
-    });
-  });
-
-  if (includeCleaners) {
-    collectCleanerNodes().forEach((node) => {
-      let nodeChanged = false;
-      [CLEANER_FIELDS.banana, CLEANER_FIELDS.modao].forEach((field) => {
-        if (clearNodeWidget(node, field)) {
-          nodeChanged = true;
-          clearedCount++;
-        }
-      });
-      if (nodeChanged) {
-        markDirty(node);
-      }
-    });
-  }
-
-  if (clearedCount > 0) {
-    const msg = `已清除 ${clearedCount} 个 API Key`;
-    console.log(`[${EXTENSION}] ${msg}`);
-    if (!silent) {
-      app.ui.dialog.show(msg);
-    }
-    changed = true;
-  } else {
-    console.log(`[${EXTENSION}] No API keys found to purge.`);
-    // 只有在手动触发时（includeCleaners=true）才提示未找到
-    if (includeCleaners) {
-      // app.ui.dialog.show("未发现可清除的 API Key");
-    }
-  }
-
-  return changed;
-}
-
-function performClean(includeCleaners = true, options = {}) {
-  if (typeof includeCleaners === "object") {
-    options = includeCleaners;
-    includeCleaners = true;
-  }
-  const silent = options?.silent === true;
-  if (!silent) {
-    console.log(`[${EXTENSION}] Manual clean triggered.`);
-  }
-  clearTargets(includeCleaners, { silent });
-}
-
-function applyBackfillTransient() {
-  if (!app?.graph) return () => {};
-  const { bananaKey, modaoKey } = readGlobalKeys();
-  if (!bananaKey && !modaoKey) return () => {};
-  const revertRecords = [];
-
-  const setIfEmpty = (node, fieldName, value) => {
-    const widget = findWidget(node, fieldName);
-    if (!widget || isEmptyValue(widget.value) === false) return;
-    const prev = widget.value;
-    if (!setWidgetValue(widget, value)) return;
-    revertRecords.push({ widget, prev, node });
-    markDirty(node);
+  if (!graph || graph.__bananaGlobalKeyGuard || typeof graph.serialize !== "function") return;
+  const serialize = graph.serialize;
+  graph.serialize = function () {
+    if (globalKeyConfigured) clearAllWorkflowKeys();
+    return serialize.apply(this, arguments);
   };
-
-  TARGETS.filter(
-    (target) => target.className !== "XinbaoModelScopeCaption",
-  ).forEach((target) => {
-    const nodes = findNodesByClassName(target.className);
-    nodes.forEach((node) => {
-      target.fields.forEach((field) => {
-        if (field === "banana_api_key") {
-          if (!isEmptyValue(bananaKey)) {
-            setIfEmpty(node, field, bananaKey);
-          }
-          return;
-        }
-        if (field === "modelscope_api_key" || field === "api_key") {
-          if (!isEmptyValue(modaoKey)) {
-            setIfEmpty(node, field, modaoKey);
-          }
-        }
-      });
-    });
-  });
-
-  const captionNodes = findNodesByClassName("XinbaoModelScopeCaption");
-  captionNodes.forEach((node) => {
-    const channelWidget = findWidget(node, "channel");
-    const channelValue = channelWidget?.value || CHANNEL_BANANA;
-    if (channelValue === CHANNEL_MODAO) {
-      if (!isEmptyValue(modaoKey)) {
-        setIfEmpty(node, "modelscope_api_key", modaoKey);
-      }
-    } else {
-      if (!isEmptyValue(bananaKey)) {
-        setIfEmpty(node, "banana_api_key", bananaKey);
-      }
-    }
-  });
-
-  return () => {
-    revertRecords.forEach(({ widget, prev, node }) => {
-      setWidgetValue(widget, prev);
-      markDirty(node);
-    });
-  };
+  graph.__bananaGlobalKeyGuard = true;
 }
 
-function ensureManualButton(node) {
-  if (!node || node.__bananaKeyPurgeReady) return;
-  stripLegacyAutoCleanWidget(node);
-
-  const widget = node.addCustomWidget({
-    name: "banana-purge-now",
-    type: "banana-purge-now",
-    node,
-    draw(ctx, _, widgetWidth, y, height) {
-      const text = "立即清除全图apikey";
-      const font = "12px sans-serif";
-      const paddingX = 14;
-      const marginTop = 6;
-      const radius = 8;
-      const active = this.__active;
-      const previousFont = ctx.font;
-      const previousAlign = ctx.textAlign;
-      ctx.font = font;
-      const textWidth = ctx.measureText(text).width;
-      const rectWidth = Math.max(textWidth + paddingX * 2, 170);
-      const rectHeight = Math.max(height || 22, 22);
-      const x = (widgetWidth - rectWidth) / 2;
-      const yPos = y + marginTop;
-      ctx.fillStyle = active ? "#c0392b" : "#e74c3c";
-      ctx.strokeStyle = active ? "#922b21" : "#b03a2e";
-      ctx.beginPath();
-      if (ctx.roundRect) {
-        ctx.roundRect(x, yPos, rectWidth, rectHeight, radius);
-      } else {
-        ctx.rect(x, yPos, rectWidth, rectHeight);
-      }
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "#ffffff";
-      ctx.textAlign = "center";
-      ctx.fillText(text, x + rectWidth / 2, yPos + rectHeight * 0.65);
-      ctx.font = previousFont;
-      ctx.textAlign = previousAlign;
-      this.__rect = { x, y: yPos, w: rectWidth, h: rectHeight };
-    },
-    mouse(event, position) {
-      const trigger =
-        ((globalThis.LiteGraph && globalThis.LiteGraph.pointerevents_method) ||
-          "pointer") + "down";
-      if (event?.type !== trigger) return false;
-      const rect = this.__rect;
-      if (!rect) return false;
-      const [x, y] = position;
-      if (
-        x >= rect.x &&
-        x <= rect.x + rect.w &&
-        y >= rect.y &&
-        y <= rect.y + rect.h
-      ) {
-        this.__active = true;
-        this.node?.graph?.setDirtyCanvas(true, true);
-        setTimeout(() => {
-          this.__active = false;
-          this.node?.graph?.setDirtyCanvas(true, true);
-        }, 180);
-        performClean();
-        return true;
-      }
-      return false;
-    },
-    computeSize(widgetWidth) {
-      // extra top margin
-      return [widgetWidth, 34];
-    },
-    serialize: false,
-  });
-  node.__bananaKeyPurgeReady = true;
-  // 尽量把按钮挪到密钥输入后面，便于发现
-  if (Array.isArray(node.widgets) && widget) {
-    const index = node.widgets.indexOf(widget);
-    const bananaIdx = node.widgets.findIndex(
-      (w) => w.name === CLEANER_FIELDS.banana,
-    );
-    const modaoIdx = node.widgets.findIndex(
-      (w) => w.name === CLEANER_FIELDS.modao,
-    );
-    const targetIdx = Math.max(bananaIdx, modaoIdx);
-    if (index > -1 && targetIdx > -1 && index < targetIdx) {
-      node.widgets.splice(index, 1);
-      node.widgets.splice(targetIdx + 1, 0, widget);
-    }
+async function refreshGlobalKeyState() {
+  try {
+    const response = await fetch(API_TASKS, { method: "GET", cache: "no-store" });
+    if (!response.ok) return globalKeyConfigured;
+    const payload = await response.json();
+    globalKeyConfigured = payload?.data?.settings?.api_key_configured === true;
+    installWorkflowSerializationGuard();
+    decorateAllKeyWidgets();
+    if (globalKeyConfigured) clearAllWorkflowKeys();
+  } catch (error) {
+    console.warn(`[${EXTENSION}] 读取全局密钥状态失败`, error);
   }
-}
-
-function wrapWithPreAction(target, method, preAction) {
-  if (!target || typeof target[method] !== "function") return;
-  const original = target[method];
-  if (original.__bananaWrapped) return;
-  target[method] = async function (...args) {
-    try {
-      await preAction();
-    } catch (error) {
-      console.warn(`[${EXTENSION}] 预处理失败(${method})`, error);
-    }
-    return original.apply(this, args);
-  };
-  target[method].__bananaWrapped = true;
-}
-
-function setupBackfill() {
-  const RUN_METHODS = ["queuePrompt", "enqueuePrompt", "processQueue"];
-  RUN_METHODS.forEach((method) => {
-    wrapWithPreAction(app, method, () => {
-      const revert = applyBackfillTransient();
-      // 将恢复动作挂到微任务，保证调用结束后还原
-      setTimeout(revert, 0);
-    });
-    if (app?.ui) {
-      wrapWithPreAction(app.ui, method, () => {
-        const revert = applyBackfillTransient();
-        setTimeout(revert, 0);
-      });
-    }
-  });
+  return globalKeyConfigured;
 }
 
 app.registerExtension({
   name: EXTENSION,
   setup() {
-    collectCleanerNodes().forEach(stripLegacyAutoCleanWidget);
-    setupBackfill();
+    const graphToPrompt = app.graphToPrompt;
+    if (typeof graphToPrompt === "function" && !app.__bananaGlobalKeyPromptGuard) {
+      app.graphToPrompt = async function () {
+        await refreshGlobalKeyState();
+        return graphToPrompt.apply(this, arguments);
+      };
+      app.__bananaGlobalKeyPromptGuard = true;
+    }
+    if (!window.__bananaGlobalKeyListenerReady) {
+      window.addEventListener("banana:global-key-saved", () => {
+        globalKeyConfigured = true;
+        installWorkflowSerializationGuard();
+        clearAllWorkflowKeys();
+      });
+      window.__bananaGlobalKeyListenerReady = true;
+    }
+    void refreshGlobalKeyState();
   },
   nodeCreated(node) {
-    if (node?.comfyClass === CLEANER_CLASS) {
-      ensureManualButton(node);
-    }
+    setTimeout(() => {
+      decorateKeyWidget(node);
+      if (globalKeyConfigured) clearNodeKey(node);
+    }, 0);
   },
-  beforeRegisterNodeDef(nodeType, nodeData) {
-    if (nodeData?.name !== CLEANER_CLASS) {
-      return;
-    }
-    const original = nodeType.prototype.onNodeCreated;
-    nodeType.prototype.onNodeCreated = function () {
-      const result = original?.apply(this, arguments);
-      ensureManualButton(this);
-      return result;
-    };
+  async afterConfigureGraph() {
+    await refreshGlobalKeyState();
   },
 });

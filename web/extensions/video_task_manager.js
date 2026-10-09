@@ -11,6 +11,7 @@ const EXTENSION = "banana.videoTaskManager";
 const API_LIST = "/banana/video_tasks";
 const API_REFRESH = "/banana/video_tasks/refresh";
 const API_DELETE = "/banana/video_tasks/delete";
+const API_CLEAR = "/banana/video_tasks/clear";
 const API_KEY = "/banana/video_tasks/key";
 const API_SETTINGS = "/banana/video_tasks/settings";
 const API_OPEN_LOCAL = "/banana/video_tasks/open_local";
@@ -60,10 +61,14 @@ let tabEls = {};
 let statusChipEls = {};
 let footerLeftEl = null;
 let footerKeyEl = null;
+let globalKeyInputEl = null;
 let searchInputEl = null;
 let sortSelectEl = null;
 let autoRefreshCheckboxEl = null;
 let batchToolbarEl = null; // Phase 2 placeholder
+let clearAllBtnEl = null;
+let clearAllImagesBtnEl = null;
+let clearTasksInFlight = false;
 
 // ── Incremental render state ──
 const cardElementMap = new Map(); // taskId → { element, snapshot }
@@ -701,6 +706,19 @@ function injectStyles() {
 .banana-tc-btn.header:hover {
   background: rgba(255,255,255,0.06);
   color: #fff;
+}
+.banana-tc-btn.header.danger {
+  border-color: #ef444466;
+  color: #ef6b6b;
+  background: #ef444411;
+}
+.banana-tc-btn.header.danger:hover {
+  background: #ef444422;
+  color: #ff8a8a;
+}
+.banana-tc-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* ── Footer ── */
@@ -1623,6 +1641,88 @@ function buildViewUrl(localFile) {
   return `/view?${params.toString()}`;
 }
 
+function getFirstLocalFile(task) {
+  if (task?.local_file && typeof task.local_file === "object") return task.local_file;
+  if (Array.isArray(task?.local_files)) {
+    return task.local_files.find((item) => item && typeof item === "object") || null;
+  }
+  return null;
+}
+
+function setClearButtonsDisabled(disabled) {
+  if (clearAllBtnEl) clearAllBtnEl.disabled = disabled;
+  if (clearAllImagesBtnEl) clearAllImagesBtnEl.disabled = disabled;
+}
+
+async function clearAllTasks(deleteLocalImages) {
+  if (clearTasksInFlight) return;
+  const confirmed = confirm(deleteLocalImages
+    ? "确认清空全部任务并删除关联的本地图片？\n\n本地图片删除后无法从任务中心恢复。"
+    : "确认清空全部任务记录？\n\n已保存的本地文件会保留。");
+  if (!confirmed) return;
+
+  clearTasksInFlight = true;
+  setClearButtonsDisabled(true);
+  try {
+    const payload = await postJson(API_CLEAR, { delete_local_images: deleteLocalImages });
+    const data = payload?.data || {};
+    state.selectedIds.clear();
+    try { localStorage.removeItem(LS_PINNED_TASKS); } catch {}
+    _pinnedCache = null;
+
+    if (deleteLocalImages) {
+      const deletedFiles = Number(data.deleted_files || 0);
+      const failedFiles = Number(data.failed_files || 0);
+      const rejectedFiles = Number(data.rejected_files || 0);
+      const suffix = failedFiles || rejectedFiles
+        ? `，${failedFiles + rejectedFiles} 个文件未删除`
+        : "";
+      showToast(`已清空 ${Number(data.deleted_tasks || 0)} 个任务，删除 ${deletedFiles} 张本地图片${suffix}`,
+        failedFiles || rejectedFiles ? "error" : "success");
+    } else {
+      showToast(`已清空 ${Number(data.deleted_tasks || 0)} 个任务，本地文件已保留`);
+    }
+    await fetchAndRender();
+    updateBatchToolbar();
+  } catch (err) {
+    showToast(`清空失败: ${err?.message || err}`, "error");
+  } finally {
+    clearTasksInFlight = false;
+    setClearButtonsDisabled(false);
+  }
+}
+
+async function openTaskLocalFolder(task) {
+  if (!isWindowsPlatform()) {
+    showToast("打开所在目录目前仅支持 Windows", "error");
+    return;
+  }
+  const localFile = getFirstLocalFile(task);
+  if (!localFile) {
+    showToast("该任务没有本地文件", "error");
+    return;
+  }
+  try {
+    const payload = await postJson(API_OPEN_LOCAL, {
+      id: String(task?.id || "").trim(),
+      local_file: localFile,
+    });
+    if (payload?.data?.opened) {
+      showToast("已打开所在目录");
+      return;
+    }
+    const reason = payload?.data?.reason;
+    const message = reason === "not_found" || reason === "missing_local_file"
+      ? "本地文件不存在"
+      : reason === "not_windows"
+        ? "打开所在目录目前仅支持 Windows"
+        : "无法打开所在目录";
+    showToast(message, "error");
+  } catch (err) {
+    showToast(`打开所在目录失败: ${err?.message || err}`, "error");
+  }
+}
+
 /**
  * 获取任务的图片展示 URL 列表。
  * 优先使用已下载到本地的 local_files（不会过期），
@@ -1686,11 +1786,6 @@ function statusLabel(status) {
     case "failed": return "\u5931\u8D25";
     default: return status || "\u672A\u77E5";
   }
-}
-
-function maskKey(key) {
-  if (!key || key.length < 6) return "***";
-  return `${key.slice(0, 3)}***${key.slice(-3)}`;
 }
 
 function setStatusText(text) {
@@ -2483,6 +2578,12 @@ function buildCardCtxMenuItems(task) {
   const isImg = isImageTask(task);
   const imageUrls = resolveImageUrls(task);
   const items = [];
+
+  if (taskId && getFirstLocalFile(task) && isWindowsPlatform()) {
+    items.push({ label: "打开所在目录", action: () => {
+      void openTaskLocalFolder(task);
+    }});
+  }
 
   items.push({ label: "\u6253\u5F00\u8BE6\u60C5", action: () => openTaskDetail(task) });
 
@@ -3434,8 +3535,19 @@ async function fetchAndRender() {
 
     // Update key display in footer
     if (footerKeyEl) {
-      const key = settings.api_key_masked || settings.api_key || "";
-      footerKeyEl.textContent = key ? `Key: ${maskKey(key)}` : "Key: \u672A\u8BBE\u7F6E";
+      const mask = String(settings.api_key_masked || "");
+      footerKeyEl.textContent = settings.api_key_configured ? `Key: ${mask}` : "Key: \u672A\u8BBE\u7F6E";
+    }
+    if (globalKeyInputEl && settings.api_key_configured) {
+      const mask = String(settings.api_key_masked || "");
+      const previousMask = globalKeyInputEl.dataset.masked || "";
+      const showingMask = !!previousMask && globalKeyInputEl.value === previousMask;
+      globalKeyInputEl.dataset.configured = "true";
+      globalKeyInputEl.dataset.masked = mask;
+      if (!globalKeyInputEl.value || showingMask) {
+        globalKeyInputEl.type = "text";
+        globalKeyInputEl.value = mask;
+      }
     }
 
     renderCards();
@@ -3552,6 +3664,41 @@ function ensureOverlay() {
   const headerActions = document.createElement("div");
   headerActions.className = "banana-tc-header-actions";
 
+  const keySettingsBtn = document.createElement("button");
+  keySettingsBtn.className = "banana-tc-btn header primary";
+  keySettingsBtn.textContent = "设置Key";
+  keySettingsBtn.addEventListener("click", () => {
+    const opening = !settingsDrawerEl?.classList.contains("open");
+    settingsDrawerEl?.classList.toggle("open", opening);
+    if (opening) window.setTimeout(() => globalKeyInputEl?.focus(), 0);
+  });
+
+  const saveDirectoryBtn = document.createElement("button");
+  saveDirectoryBtn.className = "banana-tc-btn header";
+  saveDirectoryBtn.textContent = "保存目录";
+  saveDirectoryBtn.addEventListener("click", async () => {
+    try {
+      const payload = await postJson(API_OPEN_LOCAL, { open_save_dir: true });
+      if (payload?.data?.opened) {
+        showToast("已打开保存目录");
+      } else {
+        showToast("无法打开保存目录", "error");
+      }
+    } catch (error) {
+      showToast(`打开保存目录失败: ${error?.message || error}`, "error");
+    }
+  });
+
+  clearAllBtnEl = document.createElement("button");
+  clearAllBtnEl.className = "banana-tc-btn header";
+  clearAllBtnEl.textContent = "清空全部";
+  clearAllBtnEl.addEventListener("click", () => void clearAllTasks(false));
+
+  clearAllImagesBtnEl = document.createElement("button");
+  clearAllImagesBtnEl.className = "banana-tc-btn header danger";
+  clearAllImagesBtnEl.textContent = "清空全部及本地图片";
+  clearAllImagesBtnEl.addEventListener("click", () => void clearAllTasks(true));
+
   const refreshBtn = document.createElement("button");
   refreshBtn.className = "banana-tc-btn header";
   refreshBtn.textContent = "\u5237\u65B0";
@@ -3562,6 +3709,10 @@ function ensureOverlay() {
   closeBtn.textContent = "\u5173\u95ED";
   closeBtn.addEventListener("click", () => hideOverlay());
 
+  headerActions.appendChild(keySettingsBtn);
+  headerActions.appendChild(saveDirectoryBtn);
+  headerActions.appendChild(clearAllBtnEl);
+  headerActions.appendChild(clearAllImagesBtnEl);
   headerActions.appendChild(refreshBtn);
   headerActions.appendChild(closeBtn);
   header.appendChild(title);
@@ -3636,7 +3787,7 @@ function ensureOverlay() {
 
   const keyTitle = document.createElement("div");
   keyTitle.className = "banana-tc-settings-title";
-  keyTitle.textContent = "API Key\uFF08\u4E0D\u843D\u76D8\uFF1B\u901A\u7528\uFF09";
+  keyTitle.textContent = "\u5168\u5C40 API Key\uFF08\u4EC5\u4FDD\u5B58\u5728\u672C\u673A\uFF0C\u4E0D\u5199\u5165\u5DE5\u4F5C\u6D41\uFF09";
   keySection.appendChild(keyTitle);
 
   const keyRow = document.createElement("div");
@@ -3645,31 +3796,38 @@ function ensureOverlay() {
   const keyInput = document.createElement("input");
   keyInput.type = "password";
   keyInput.className = "banana-tc-key-input";
-  keyInput.placeholder = "\u8F93\u5165 Key\uFF08Sora/Veo/\u8C46\u5305/\u56FE\u7247 \u901A\u7528\uFF09";
+  keyInput.autocomplete = "new-password";
+  keyInput.spellcheck = false;
+  keyInput.placeholder = "\u8F93\u5165\u5168\u5C40 Key\uFF08\u56FE\u7247/\u89C6\u9891\u901A\u7528\uFF09";
+  keyInput.addEventListener("focus", () => {
+    if (keyInput.value && keyInput.value === keyInput.dataset.masked) {
+      keyInput.value = "";
+      keyInput.type = "password";
+    }
+  });
+  keyInput.addEventListener("blur", () => {
+    if (!keyInput.value && keyInput.dataset.configured === "true") {
+      keyInput.type = "text";
+      keyInput.value = keyInput.dataset.masked || "";
+    }
+  });
+  globalKeyInputEl = keyInput;
 
   const keySaveBtn = document.createElement("button");
   keySaveBtn.className = "banana-tc-btn primary";
   keySaveBtn.textContent = "\u4FDD\u5B58";
   keySaveBtn.addEventListener("click", async () => {
     const value = String(keyInput.value || "").trim();
-    if (!value) return;
-    // Send to all 4 providers simultaneously
-    const providers = ["sora", "veo", "doubao", "banana_v3"];
+    if (!value || value === keyInput.dataset.masked) return;
     try {
-      const results = await Promise.allSettled(
-        providers.map((provider) => postJson(API_KEY, { provider, api_key: value }))
-      );
-      const failed = results
-        .map((res, idx) => ({ res, provider: providers[idx] }))
-        .filter((item) => item.res.status === "rejected");
-      if (!failed.length) {
-        keyInput.value = "";
-        setStatusText("Key \u5DF2\u4FDD\u5B58\uFF08\u4EC5\u672C\u6B21\u4F1A\u8BDD\uFF09");
-      } else {
-        const providerList = failed.map((item) => item.provider).join("/");
-        const firstErr = failed[0].res.reason;
-        setStatusText(`Key \u4FDD\u5B58\u90E8\u5206\u5931\u8D25\uFF08${providerList}\uFF09: ${firstErr?.message || firstErr || "\u672A\u77E5\u9519\u8BEF"}`);
-      }
+      const response = await postJson(API_KEY, { provider: "global", api_key: value });
+      const mask = String(response?.data?.api_key_masked || "");
+      keyInput.dataset.configured = "true";
+      keyInput.dataset.masked = mask;
+      keyInput.type = "text";
+      keyInput.value = mask;
+      setStatusText("\u5168\u5C40 Key \u5DF2\u4FDD\u5B58\u5230\u672C\u673A\uFF0C\u5DE5\u4F5C\u6D41\u4E2D\u7684 Key \u5DF2\u6E05\u7406");
+      window.dispatchEvent(new CustomEvent("banana:global-key-saved"));
       void fetchAndRender();
     } catch (err) {
       setStatusText(`\u4FDD\u5B58 Key \u5931\u8D25: ${err?.message || err}`);
@@ -3898,15 +4056,7 @@ function ensureOverlay() {
   footerKeyEl.className = "banana-tc-footer-key";
   footerKeyEl.textContent = "Key: \u672A\u8BBE\u7F6E";
 
-  const settingsBtn = document.createElement("button");
-  settingsBtn.className = "banana-tc-footer-settings-btn";
-  settingsBtn.textContent = "\u8BBE\u7F6E";
-  settingsBtn.addEventListener("click", () => {
-    settingsDrawerEl.classList.toggle("open");
-  });
-
   footerRight.appendChild(footerKeyEl);
-  footerRight.appendChild(settingsBtn);
   footer.appendChild(footerLeftEl);
   footer.appendChild(footerRight);
 

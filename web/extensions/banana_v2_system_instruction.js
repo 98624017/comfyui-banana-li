@@ -47,7 +47,7 @@ app.registerExtension({
                         try {
                             const presetContent = PRESETS[value];
                             if (value !== "None" && presetContent) {
-                                // 直接赋值并刷新画布（与 snippet_manager.js 保持一致）
+                                // 直接赋值并刷新画布
                                 textWidget.value = presetContent;
                                 // 使用捕获的 node 实例触发画布重绘
                                 self.setDirtyCanvas(true, true);

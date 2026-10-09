@@ -51,7 +51,7 @@ function findWidget(node, name) {
 /**
  * 核心：根据当前 app_select 更新所有插槽的可见性与属性
  */
-function updateAppWidgets(node) {
+function updateAppWidgets(node, applyDefaults = false) {
   const appWidget = findWidget(node, "app_select");
   if (!appWidget) return;
 
@@ -74,6 +74,11 @@ function updateAppWidgets(node) {
     if (fieldConfig) {
       // 显示此 widget
       showWidget(widget);
+
+      // 只在用户切换应用时应用新应用的默认值，加载工作流时保留已保存值。
+      if (applyDefaults && fieldConfig.default !== undefined) {
+        widget.value = fieldConfig.default;
+      }
 
       // 更新标签
       if (fieldConfig.label) {
@@ -152,7 +157,7 @@ app.registerExtension({
         const self = this;
         appWidget.callback = function () {
           const cbResult = originalCallback?.apply(this, arguments);
-          updateAppWidgets(self);
+          updateAppWidgets(self, true);
           return cbResult;
         };
         appWidget.__bananaAppSwitchWrapped = true;

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import glob
 import json
+import ntpath
 import os
 import random
 import shutil
-import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -19,8 +19,9 @@ import requests
 import folder_paths
 
 from logger import logger
+from config_manager import ConfigManager
 
-from ..core.download import download_video
+from ..core.download import download_binary_with_parallel_ranges, download_video
 from ..core.masking import _clean_url, _mask_text
 from ..providers.doubao_videos_api import DoubaoVideoClient
 from ..providers.sora_videos_api import SoraVideoClient
@@ -60,10 +61,25 @@ _DEFAULT_POLL_INTERVAL_SECONDS = 15.0
 _TERMINAL_STATUSES = {"success", "failed"}
 _ACTIVE_STATUSES = {"pending", "processing"}
 _VIDEO_EXTENSIONS: frozenset = frozenset({".mp4", ".webm", ".mov", ".avi"})
+_IMAGE_EXTENSIONS: frozenset = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"})
 
 
 def _now_ts() -> int:
     return int(time.time())
+
+
+def _ext_from_image_bytes(data: bytes, default: str = ".png") -> str:
+    if data.startswith(b"\xff\xd8\xff"):
+        return ".jpg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return ".png"
+    if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+        return ".gif"
+    if data.startswith(b"BM"):
+        return ".bmp"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return ".webp"
+    return default
 
 
 def _safe_int(value: object, default: int = 0) -> int:
@@ -134,35 +150,57 @@ def _local_file_to_abs_path(lf: Dict[str, Any]) -> Optional[str]:
     return path if os.path.isfile(path) else None
 
 
-def _resolve_local_file_path(local_file: Dict[str, Any]) -> str | None:
+def _resolve_local_file_candidate(local_file: Dict[str, Any]) -> Tuple[str | None, str]:
     filename = _safe_str((local_file or {}).get("filename")).strip()
     subfolder = _safe_str((local_file or {}).get("subfolder")).strip()
     file_type = _safe_str((local_file or {}).get("type")).strip() or "output"
 
     if not filename:
-        return None
-    if os.path.basename(filename) != filename:
-        return None
+        return None, "invalid_path"
+    if os.path.basename(filename) != filename or ntpath.basename(filename) != filename or ntpath.isabs(filename) or ntpath.splitdrive(filename)[0]:
+        return None, "invalid_path"
+    if file_type not in {"input", "output", "temp"}:
+        return None, "invalid_path"
 
     base_dir = folder_paths.get_directory_by_type(file_type)
     if not base_dir:
-        return None
+        return None, "invalid_path"
 
-    norm_subfolder = os.path.normpath(subfolder).replace("\\", "/").strip("/")
-    if not norm_subfolder or norm_subfolder.startswith("..") or ":" in norm_subfolder:
-        return None
+    if os.path.isabs(subfolder) or ntpath.isabs(subfolder) or ntpath.splitdrive(subfolder)[0]:
+        return None, "invalid_path"
+    norm_subfolder = os.path.normpath(subfolder or ".").replace("\\", "/").strip("/")
+    if norm_subfolder == ".." or norm_subfolder.startswith("../") or ":" in norm_subfolder:
+        return None, "invalid_path"
 
-    candidate = os.path.abspath(os.path.join(base_dir, norm_subfolder, filename))
+    candidate = os.path.realpath(os.path.abspath(os.path.join(base_dir, norm_subfolder, filename)))
     try:
-        base_abs = os.path.abspath(base_dir)
-        if os.path.commonpath([base_abs, candidate]) != base_abs:
-            return None
+        base_abs = os.path.realpath(os.path.abspath(base_dir))
+        if os.path.normcase(os.path.commonpath([base_abs, candidate])) != os.path.normcase(base_abs):
+            return None, "invalid_path"
     except Exception:
-        return None
+        return None, "invalid_path"
 
     if not os.path.isfile(candidate):
-        return None
-    return candidate
+        return None, "not_found"
+    return candidate, ""
+
+
+def _resolve_local_file_path(local_file: Dict[str, Any]) -> str | None:
+    path, _reason = _resolve_local_file_candidate(local_file)
+    return path
+
+
+def _resolve_local_image_path(local_file: Dict[str, Any]) -> Tuple[str | None, str]:
+    filename = _safe_str((local_file or {}).get("filename")).strip()
+    if (_safe_str((local_file or {}).get("type")).strip() or "output") != "output":
+        return None, "not_output"
+    if os.path.splitext(filename)[1].lower() not in _IMAGE_EXTENSIONS:
+        return None, "not_image"
+    path, reason = _resolve_local_file_candidate(local_file)
+    # 图片名也可能是指向视频的符号链接，校验实际目标避免误删视频。
+    if path and os.path.splitext(path)[1].lower() not in _IMAGE_EXTENSIONS:
+        return None, "not_image"
+    return path, reason
 
 
 def _open_in_windows_explorer_select(file_path: str) -> bool:
@@ -173,13 +211,32 @@ def _open_in_windows_explorer_select(file_path: str) -> bool:
     if not path or not os.path.isfile(path):
         return False
 
-    # explorer.exe 参数解析对引号较敏感，按常见用法拼为单参数最稳妥：/select,"C:\path\file.mp4"
+    # explorer.exe 的 /select 参数在经由 subprocess 传递包含引号的路径时
+    # 容易被错误解析，表现为只打开“此电脑”。直接交给 Windows Shell 打开
+    # 父目录，对空格、中文和逗号路径更可靠。
     try:
-        arg = f'/select,"{os.path.normpath(path)}"'
-        subprocess.Popen(["explorer.exe", arg], close_fds=True)
+        folder_path = os.path.dirname(os.path.realpath(path))
+        if not folder_path or not os.path.isdir(folder_path):
+            return False
+        os.startfile(folder_path)  # type: ignore[attr-defined]
         return True
     except Exception as exc:
         logger.warning(f"打开资源管理器失败：{type(exc).__name__} {_mask_text(str(exc))}")
+        return False
+
+
+def _open_windows_directory(directory_path: str) -> bool:
+    if os.name != "nt":
+        return False
+    path = os.path.realpath(os.path.abspath((directory_path or "").strip()))
+    if not path:
+        return False
+    try:
+        os.makedirs(path, exist_ok=True)
+        os.startfile(path)  # type: ignore[attr-defined]
+        return True
+    except Exception as exc:
+        logger.warning(f"打开保存目录失败：{type(exc).__name__} {_mask_text(str(exc))}")
         return False
 
 
@@ -594,19 +651,81 @@ class VideoTaskHistoryStore:
         self._mutate(_do)
         return deleted
 
+    def clear_tasks(self, delete_local_images: bool = False) -> Dict[str, int]:
+        stats = {
+            "deleted_tasks": 0,
+            "deleted_files": 0,
+            "missing_files": 0,
+            "rejected_files": 0,
+            "failed_files": 0,
+        }
+
+        def _do(data: Dict[str, Any]) -> None:
+            tasks = data.get("tasks", [])
+            if not isinstance(tasks, list):
+                tasks = []
+            stats["deleted_tasks"] = len(tasks)
+
+            if delete_local_images:
+                candidates = set()
+                seen_refs = set()
+                for task in tasks:
+                    if not isinstance(task, dict) or _safe_str(task.get("provider")).strip().lower() != "banana_v3":
+                        continue
+
+                    refs: List[Dict[str, Any]] = []
+                    local_files = task.get("local_files")
+                    if isinstance(local_files, list):
+                        refs.extend(item for item in local_files if isinstance(item, dict))
+                    local_file = task.get("local_file")
+                    if isinstance(local_file, dict):
+                        refs.append(local_file)
+
+                    for ref in refs:
+                        ref_key = (
+                            _safe_str(ref.get("type")).strip() or "output",
+                            _safe_str(ref.get("subfolder")).strip(),
+                            _safe_str(ref.get("filename")).strip(),
+                        )
+                        if ref_key in seen_refs:
+                            continue
+                        seen_refs.add(ref_key)
+                        path, reason = _resolve_local_image_path(ref)
+                        if path:
+                            candidates.add(path)
+                        elif reason == "not_found":
+                            stats["missing_files"] += 1
+                        else:
+                            stats["rejected_files"] += 1
+
+                for path in sorted(candidates):
+                    try:
+                        os.remove(path)
+                        stats["deleted_files"] += 1
+                    except FileNotFoundError:
+                        stats["missing_files"] += 1
+                    except OSError:
+                        stats["failed_files"] += 1
+
+            data["tasks"] = []
+
+        self._mutate(_do)
+        return stats
+
 
 class VideoTaskKeyCache:
     """
-    Key 仅内存缓存（不落盘）。
+    Provider Key 内存缓存。未命中时回退到任务中心的本机全局密钥。
 
     说明：
-    - 为保持 KISS 与安全边界，不做任何持久化。
+    - provider 专用 Key 仅存内存；全局 Key 由 ConfigManager 持久化到本机敏感配置。
     - 支持按 provider + route_choice 维度存储；route_choice 为空时视为 provider 全局默认。
     """
 
-    def __init__(self) -> None:
+    def __init__(self, global_key_loader=None) -> None:
         self._lock = threading.RLock()
         self._cache: Dict[Tuple[str, str], str] = {}
+        self._global_key_loader = global_key_loader
 
     def set_key(self, provider: str, api_key: str, route_choice: str = "") -> None:
         p = (provider or "").strip().lower()
@@ -627,7 +746,15 @@ class VideoTaskKeyCache:
             if hit:
                 return hit
             # provider 级兜底（route_choice 为空）
-            return self._cache.get((p, "")) or None
+            hit = self._cache.get((p, ""))
+        if hit:
+            return hit
+        if callable(self._global_key_loader):
+            try:
+                return (self._global_key_loader() or "").strip() or None
+            except Exception as exc:
+                logger.warning(f"读取任务中心全局密钥失败: {exc}")
+        return None
 
 
 class VideoTaskSettings:
@@ -1516,18 +1643,25 @@ class VideoTaskDaemon:
                 logger.warning(f"{label}任务自动下载失败（将仅保留链接）：{type(exc).__name__} {_mask_text(str(exc))}")
                 return None
         else:
-            # 图片等非视频资源：简单 HTTP GET 保存
+            # 图片等非视频资源：支持 Range 分块下载，失败由下载器回退普通下载
             logger.info(f"{label}任务自动下载：{task_id} -> {subfolder}/{filename}")
             try:
-                resp = session.get(video_url, timeout=(15, 90))
-                resp.raise_for_status()
-                # 若服务端返回了 Content-Type，用它修正扩展名
-                actual_ext = self._ext_from_content_type(resp.headers.get("Content-Type", ""))
+                data = download_binary_with_parallel_ranges(
+                    session,
+                    video_url,
+                    timeout=(15, 90),
+                    enable_parallel_range_download=True,
+                    parallel_range_min_size_bytes=1024 * 1024,
+                    parallel_range_workers=8,
+                    allowed_content_type_prefixes=("image/",),
+                    log_label="图片",
+                ).getvalue()
+                actual_ext = _ext_from_image_bytes(data, default=ext)
                 if actual_ext and actual_ext != ext:
                     filename = f"{safe_provider}_{safe_id}{actual_ext}"
                     target_path = os.path.join(target_dir, filename)
                 with open(target_path, "wb") as f:
-                    f.write(resp.content)
+                    f.write(data)
                 logger.success(f"{label}任务自动下载完成：{subfolder}/{filename}")
                 return {"filename": filename, "subfolder": subfolder, "type": "output"}
             except Exception as exc:
@@ -1564,9 +1698,12 @@ class VideoTaskDaemon:
 
 
 class VideoTaskManager:
-    def __init__(self) -> None:
+    _GLOBAL_KEY_PROVIDERS = ("sora", "veo", "doubao", "banana_v3", "comfy_api")
+
+    def __init__(self, config_manager: Optional[ConfigManager] = None) -> None:
+        self.config_manager = config_manager or ConfigManager(base_dir=_PLUGIN_ROOT)
         self.history = VideoTaskHistoryStore()
-        self.keys = VideoTaskKeyCache()
+        self.keys = VideoTaskKeyCache(global_key_loader=self.config_manager.load_api_key)
         self.settings = VideoTaskSettings()
         self.daemon = VideoTaskDaemon(self.history, self.keys, self.settings)
 
@@ -1666,6 +1803,24 @@ class VideoTaskManager:
         for tid in ids:
             self.history.update_task(tid, {"status": "processing", "next_poll_at": _now_ts(), "api_key_source": source, "error": ""})
 
+    def set_global_key(self, api_key: str) -> Dict[str, Any]:
+        cleaned = self.config_manager.sanitize_api_key(api_key)
+        if not cleaned:
+            raise ValueError("API Key 不能为空")
+        self.config_manager.save_api_key(cleaned)
+        for provider in self._GLOBAL_KEY_PROVIDERS:
+            self.set_key(provider, cleaned, source="task_center_global")
+        return self.settings_snapshot()
+
+    def settings_snapshot(self) -> Dict[str, Any]:
+        data = self.settings.snapshot()
+        api_key = self.config_manager.sanitize_api_key(self.config_manager.load_api_key()) or ""
+        configured = bool(api_key)
+        data["api_key_configured"] = configured
+        # 绝不向浏览器返回密钥的任何真实字符。
+        data["api_key_masked"] = "*" * len(api_key) if configured else ""
+        return data
+
     def set_auto_download(self, enabled: bool) -> Dict[str, Any]:
         self.settings.set_auto_download(bool(enabled))
         return self.settings.snapshot()
@@ -1700,7 +1855,7 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
         for t in tasks:
             if isinstance(t, dict) and _safe_str(t.get("status")).strip().lower() == "success":
                 t["progress"] = 100.0
-        return web.json_response({"success": True, "data": {"tasks": tasks, "settings": VIDEO_TASK_MANAGER.settings.snapshot()}})
+        return web.json_response({"success": True, "data": {"tasks": tasks, "settings": VIDEO_TASK_MANAGER.settings_snapshot()}})
 
     @prompt_server.routes.post("/banana/video_tasks/refresh")
     async def refresh_video_tasks_handler(request):
@@ -1723,13 +1878,23 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             payload = await request.json()
         except Exception:
             payload = {}
+        if not isinstance(payload, dict):
+            return web.json_response({"success": False, "message": "请求必须是 JSON 对象"}, status=400)
         provider = str(payload.get("provider") or "").strip().lower()
         api_key = str(payload.get("api_key") or "").strip()
         route_choice = str(payload.get("route_choice") or "").strip()
-        if not provider or not api_key:
-            return web.json_response({"success": False, "message": "缺少 provider/api_key"}, status=400)
-        VIDEO_TASK_MANAGER.set_key(provider, api_key, route_choice=route_choice, source="ui")
-        return web.json_response({"success": True})
+        if not api_key:
+            return web.json_response({"success": False, "message": "缺少 api_key"}, status=400)
+        try:
+            if not provider or provider == "global":
+                settings = VIDEO_TASK_MANAGER.set_global_key(api_key)
+                return web.json_response({"success": True, "data": settings})
+            VIDEO_TASK_MANAGER.set_key(provider, api_key, route_choice=route_choice, source="ui")
+            return web.json_response({"success": True})
+        except (ValueError, RuntimeError) as exc:
+            # 配置解析异常可能包含原始 Key；公共响应与日志只提供安全诊断。
+            logger.warning(f"任务中心保存 Key 失败: {type(exc).__name__}")
+            return web.json_response({"success": False, "message": "保存 Key 失败，请检查输入及本机配置文件的格式和读写权限"}, status=400)
 
     @prompt_server.routes.post("/banana/video_tasks/settings")
     async def set_video_task_settings_handler(request):
@@ -1740,8 +1905,8 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
         auto_download = payload.get("auto_download")
         if not isinstance(auto_download, bool):
             auto_download = bool(int(auto_download)) if str(auto_download).isdigit() else False
-        settings = VIDEO_TASK_MANAGER.set_auto_download(bool(auto_download))
-        return web.json_response({"success": True, "data": settings})
+        VIDEO_TASK_MANAGER.set_auto_download(bool(auto_download))
+        return web.json_response({"success": True, "data": VIDEO_TASK_MANAGER.settings_snapshot()})
 
     @prompt_server.routes.post("/banana/video_tasks/open_local")
     async def open_video_task_local_handler(request):
@@ -1757,6 +1922,15 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             reason = "not_windows"
             return web.json_response({"success": True, "data": {"opened": opened, "reason": reason}})
 
+        if payload.get("open_save_dir") is True:
+            save_dir = os.path.join(
+                folder_paths.get_output_directory(),
+                VIDEO_TASK_MANAGER.settings.download_subfolder(),
+            )
+            opened = _open_windows_directory(save_dir)
+            reason = "" if opened else "explorer_failed"
+            return web.json_response({"success": True, "data": {"opened": opened, "reason": reason}})
+
         task_id = str(payload.get("id") or "").strip()
         local_file: Dict[str, Any] | None = None
 
@@ -1767,6 +1941,10 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
                         lf = t.get("local_file")
                         if isinstance(lf, dict):
                             local_file = dict(lf)
+                        else:
+                            local_files = t.get("local_files")
+                            if isinstance(local_files, list) and local_files and isinstance(local_files[0], dict):
+                                local_file = dict(local_files[0])
                         break
             except Exception:
                 local_file = None
@@ -1803,6 +1981,20 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
         except Exception as exc:
             return web.json_response({"success": False, "message": str(exc)}, status=500)
 
+    @prompt_server.routes.post("/banana/video_tasks/clear")
+    async def handle_clear(request):
+        try:
+            body = await request.json()
+            if not isinstance(body, dict):
+                return web.json_response({"success": False, "message": "请求必须是 JSON 对象"}, status=400)
+            delete_local_images = body.get("delete_local_images", False)
+            if not isinstance(delete_local_images, bool):
+                return web.json_response({"success": False, "message": "delete_local_images 必须是布尔值"}, status=400)
+            stats = VIDEO_TASK_MANAGER.history.clear_tasks(delete_local_images=delete_local_images)
+            return web.json_response({"success": True, "data": stats})
+        except Exception as exc:
+            return web.json_response({"success": False, "message": str(exc)}, status=500)
+
     @prompt_server.routes.post("/banana/video_tasks/push_to_canvas")
     async def handle_push_to_canvas(request):
         try:
@@ -1830,14 +2022,24 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
                 return web.json_response({"success": False, "message": "本地文件不存在"}, status=404)
 
             # 远程 URL：下载后保存到输入目录
-            import requests as req_lib
-            resp = req_lib.get(image_url, timeout=(15, 60), verify=False)
-            resp.raise_for_status()
-            image_bytes = resp.content
-
             import hashlib
-            ct = resp.headers.get("content-type", "")
-            ext = "jpg" if "jpeg" in ct else ("webp" if "webp" in ct else "png")
+            download_session = requests.Session()
+            download_session.verify = False
+            try:
+                image_bytes = download_binary_with_parallel_ranges(
+                    download_session,
+                    image_url,
+                    timeout=(15, 60),
+                    enable_parallel_range_download=True,
+                    parallel_range_min_size_bytes=1024 * 1024,
+                    parallel_range_workers=8,
+                    allowed_content_type_prefixes=("image/",),
+                    log_label="图片",
+                ).getvalue()
+            finally:
+                download_session.close()
+
+            ext = _ext_from_image_bytes(image_bytes).lstrip(".")
             md5_short = hashlib.md5(image_bytes).hexdigest()[:8]
             filename = f"banana_{md5_short}.{ext}"
             filepath = os.path.join(input_dir, filename)
@@ -1876,7 +2078,6 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             tasks = VIDEO_TASK_MANAGER.history.list_tasks()
             id_to_task = {t["id"]: t for t in tasks}
 
-            import requests as req_lib
             downloaded = 0
             failed = 0
 
@@ -1899,20 +2100,45 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
                             shutil.copy2(src, dest_path)
                             downloaded += 1
                         else:
-                            resp = req_lib.get(url, timeout=(15, 60), verify=False)
-                            resp.raise_for_status()
+                            download_session = requests.Session()
+                            download_session.verify = False
+                            try:
+                                data = download_binary_with_parallel_ranges(
+                                    download_session,
+                                    url,
+                                    timeout=(15, 60),
+                                    enable_parallel_range_download=True,
+                                    parallel_range_min_size_bytes=1024 * 1024,
+                                    parallel_range_workers=8,
+                                    allowed_content_type_prefixes=("image/",),
+                                    log_label="图片",
+                                ).getvalue()
+                            finally:
+                                download_session.close()
+                            actual_ext = _ext_from_image_bytes(data)
+                            if actual_ext != ".png":
+                                dest_path = os.path.join(save_dir, f"{tid}_{idx+1}{actual_ext}")
                             with open(dest_path, "wb") as f:
-                                f.write(resp.content)
+                                f.write(data)
                             downloaded += 1
                     except Exception:
                         failed += 1
                 video_url = task.get("video_url", "")
                 if video_url and not image_urls:
                     try:
-                        resp = req_lib.get(video_url, timeout=(15, 120), verify=False)
-                        resp.raise_for_status()
-                        with open(os.path.join(save_dir, f"{tid}.mp4"), "wb") as f:
-                            f.write(resp.content)
+                        download_session = requests.Session()
+                        download_session.verify = False
+                        try:
+                            video_obj = download_video(
+                                session=download_session,
+                                url=video_url,
+                                enable_parallel_range_download=True,
+                                parallel_range_workers=8,
+                                parallel_range_min_size_bytes=1024 * 1024,
+                            )
+                        finally:
+                            download_session.close()
+                        video_obj.save_to(os.path.join(save_dir, f"{tid}.mp4"))
                         downloaded += 1
                     except Exception:
                         failed += 1

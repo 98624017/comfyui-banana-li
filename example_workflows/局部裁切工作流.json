@@ -55,42 +55,6 @@
       }
     },
     {
-      "id": 216,
-      "type": "XinbaoApiKeyPurge",
-      "pos": [
-        -5236.374606977081,
-        -737.6744340049473
-      ],
-      "size": [
-        321.892578125,
-        112
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "status",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        },
-        "cnr_id": "comfyui-banana-gemini",
-        "ver": "5cb0b920f3f4b52d8c591488d35f1652eed4daac",
-        "Node name for S&R": "XinbaoApiKeyPurge"
-      },
-      "widgets_values": [
-        "",
-        ""
-      ]
-    },
-    {
       "id": 217,
       "type": "BananaLocalCropPreprocess",
       "pos": [

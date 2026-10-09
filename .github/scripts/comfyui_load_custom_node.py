@@ -51,15 +51,21 @@ def main() -> None:
     if not success:
         raise RuntimeError("ComfyUI load_custom_node 返回 False，插件导入失败")
 
-    # 至少应出现一个稳定基础节点，证明 mappings 已注入。
-    expected_any = {"XinbaoApiKeyPurge", "BananaBindingGenerate"}
+    expected = {"BananaBindingGenerate", "BananaImageNodeV3", "XinbaoUnifiedVideoGenerator"}
+    expected.update({"XinbaoVerticalStitch", "TextAssembler", "LayerMask: MaskBoundingBoxAligned"})
     loaded_names = set(nodes.NODE_CLASS_MAPPINGS.keys())
-    if not (expected_any & loaded_names):
-        raise RuntimeError("插件导入后未发现预期基础节点，疑似加载不完整")
+    if not expected.issubset(loaded_names):
+        raise RuntimeError(f"插件加载缺少节点: {sorted(expected - loaded_names)}")
+    retired = {
+        "XinbaoApiKeyPurge", "XinbaoPromptAssistantNode", "XinbaoBatchToPSD", "XinbaoLayerSelect",
+        "XinbaoSmartGrid", "XinbaoLoadImageClean", "XinbaoImageSplitter", "LayerMask: SegmentAnythingUltra Li",
+        "XinbaoOneClickSellPrompt", "XinbaoOneClickSell",
+    }
+    if retired & loaded_names:
+        raise RuntimeError(f"已移除节点仍被注册: {sorted(retired & loaded_names)}")
 
     print("comfyui load_custom_node passed")
 
 
 if __name__ == "__main__":
     main()
-
