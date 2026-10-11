@@ -44,6 +44,18 @@ const LABELS_BY_NODE = Object.freeze({
   XinbaoUnifiedVideoGenerator: VIDEO_MODEL_LABELS,
 });
 
+const FIELD_LABELS_BY_NODE = Object.freeze({
+  BananaImageNode: { aspect_ratio: "比例", image_size: "分辨率" },
+  BananaImageNodeV2: { aspect_ratio: "比例", image_size: "分辨率" },
+  BananaImageNodeV3: { aspect_ratio: "比例", image_size: "分辨率" },
+  XinbaoUnifiedVideoGenerator: {
+    aspect_ratio: "比例",
+    resolution: "分辨率",
+    banana_route: "线路",
+  },
+  XinbaoModelScopeCaption: { channel: "线路" },
+});
+
 function applyModelLabels(node, labels) {
   const widget = node?.widgets?.find((item) => item?.name === "model_type");
   if (!widget) return;
@@ -55,11 +67,24 @@ function applyModelLabels(node, labels) {
   node?.setDirtyCanvas?.(true, true);
 }
 
-function patchNodeType(nodeType, labels) {
+function applyFieldLabels(node, labels) {
+  let changed = false;
+  for (const [name, label] of Object.entries(labels || {})) {
+    const widget = node?.widgets?.find((item) => item?.name === name);
+    if (widget && widget.label !== label) {
+      widget.label = label;
+      changed = true;
+    }
+  }
+  if (changed) node?.setDirtyCanvas?.(true, true);
+}
+
+function patchNodeType(nodeType, labels, fieldLabels) {
   const onNodeCreated = nodeType.prototype.onNodeCreated;
   nodeType.prototype.onNodeCreated = function () {
     const result = onNodeCreated?.apply(this, arguments);
     applyModelLabels(this, labels);
+    applyFieldLabels(this, fieldLabels);
     return result;
   };
 
@@ -67,6 +92,7 @@ function patchNodeType(nodeType, labels) {
   nodeType.prototype.onConfigure = function () {
     const result = onConfigure?.apply(this, arguments);
     applyModelLabels(this, labels);
+    applyFieldLabels(this, fieldLabels);
     return result;
   };
 }
@@ -76,11 +102,13 @@ app.registerExtension({
 
   beforeRegisterNodeDef(nodeType, nodeData) {
     const labels = LABELS_BY_NODE[nodeData?.name];
-    if (labels) patchNodeType(nodeType, labels);
+    const fieldLabels = FIELD_LABELS_BY_NODE[nodeData?.name];
+    if (labels || fieldLabels) patchNodeType(nodeType, labels, fieldLabels);
   },
 
   nodeCreated(node) {
     const labels = LABELS_BY_NODE[node?.comfyClass];
     if (labels) applyModelLabels(node, labels);
+    applyFieldLabels(node, FIELD_LABELS_BY_NODE[node?.comfyClass]);
   },
 });
