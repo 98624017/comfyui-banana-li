@@ -65,7 +65,7 @@ def _load_local_module(module_stem: str):
     return _load_module_from_file(module_stem, module_path)
 
 
-# 尝试自动下载二进制文件
+# 检查编译版的平台文件；源码版无需二进制文件，不自动下载。
 try:
     loader_bootstrap = _load_local_module("loader_bootstrap")
     loader_bootstrap.ensure_binaries()
@@ -155,6 +155,7 @@ SKIP_MODULES = {
     "snippet_manager",
     "xinbao_psd_tool",
     "xinbao_one_click_sell",  # 开发功能仅保存在 feature/one-click-sell，屏蔽旧编译产物
+    "apikey_purge_node",  # 已退休节点，屏蔽旧安装残留的源码/编译产物
 }
 
 # 不应被编译的模块（含 generator/async generator），删除旧编译产物防止遮蔽 .py 源码

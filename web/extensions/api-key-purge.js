@@ -2,10 +2,11 @@ import { app } from "/scripts/app.js";
 
 const EXTENSION = "banana.globalKeyWorkflowGuard";
 const API_TASKS = "/banana/video_tasks";
-const KEY_FIELD = "banana_api_key";
-const KEY_INPUT_LABEL = "输入Key （推荐在右下角任务中心设置）";
-const KEY_RECOMMENDATION = "推荐在右下角“心宝任务中心”输入全局 Key";
-const TARGET_CLASSES = new Set([
+const XINBAO_KEY_FIELD = "banana_api_key";
+const MODELSCOPE_KEY_FIELD = "modelscope_api_key";
+const XINBAO_KEY_LABEL = "输入心宝key（推荐右下角任务中心设置）";
+const MODELSCOPE_KEY_LABEL = "输入魔搭key（推荐右下角任务中心设置）";
+const XINBAO_TARGET_CLASSES = new Set([
   "BananaImageNode",
   "BananaImageNodeV2",
   "BananaImageNodeV3",
@@ -17,8 +18,17 @@ const TARGET_CLASSES = new Set([
   "XinbaoComfyApiApp",
   "XinbaoModelScopeCaption",
 ]);
+const MODELSCOPE_TARGET_CLASSES = new Set([
+  "XinbaoModelScopeImageGenerate",
+  "XinbaoModelScopeCaption",
+]);
+const KEY_CONFIGS = [
+  { field: XINBAO_KEY_FIELD, label: XINBAO_KEY_LABEL, classes: XINBAO_TARGET_CLASSES },
+  { field: MODELSCOPE_KEY_FIELD, label: MODELSCOPE_KEY_LABEL, classes: MODELSCOPE_TARGET_CLASSES },
+];
 
 let globalKeyConfigured = false;
+let modelscopeKeyConfigured = false;
 
 function findWidget(node, name) {
   if (!node) return null;
@@ -56,16 +66,19 @@ function nodeClassName(node) {
 }
 
 function decorateKeyWidget(node) {
-  if (!TARGET_CLASSES.has(nodeClassName(node))) return;
-  const widget = findWidget(node, KEY_FIELD);
-  if (!widget) return;
-  widget.label = KEY_INPUT_LABEL;
-  widget.tooltip = KEY_RECOMMENDATION;
-  widget.options = { ...(widget.options || {}), tooltip: KEY_RECOMMENDATION };
-  for (const element of [widget.inputEl, widget.domEl, widget.element]) {
-    if (!element) continue;
-    element.placeholder = KEY_RECOMMENDATION;
-    element.title = KEY_RECOMMENDATION;
+  const className = nodeClassName(node);
+  for (const config of KEY_CONFIGS) {
+    if (!config.classes.has(className)) continue;
+    const widget = findWidget(node, config.field);
+    if (!widget) continue;
+    widget.label = config.label;
+    widget.tooltip = config.label;
+    widget.options = { ...(widget.options || {}), tooltip: config.label };
+    for (const element of [widget.inputEl, widget.domEl, widget.element]) {
+      if (!element) continue;
+      element.placeholder = config.label;
+      element.title = config.label;
+    }
   }
 }
 
@@ -92,7 +105,7 @@ function findNodesByClassName(className) {
   return result;
 }
 
-function clearLinkedPrimitive(node) {
+function clearLinkedPrimitive(node, fieldName) {
   const graph = node?.graph || app?.graph;
   const visited = new Set();
   const visitInput = (input) => {
@@ -109,27 +122,34 @@ function clearLinkedPrimitive(node) {
     if (nodeClassName(source) === "PrimitiveNode") clearWidget(source, "value");
   };
 
-  const input = node?.inputs?.find((item) => item?.name === KEY_FIELD);
+  const input = node?.inputs?.find((item) => item?.name === fieldName);
   visitInput(input);
 }
 
-function clearNodeKey(node) {
-  if (!TARGET_CLASSES.has(nodeClassName(node))) return;
+function clearNodeKey(node, fieldName = XINBAO_KEY_FIELD) {
+  const config = KEY_CONFIGS.find((item) => item.field === fieldName);
+  if (!config?.classes.has(nodeClassName(node))) return;
   decorateKeyWidget(node);
-  clearWidget(node, KEY_FIELD);
-  clearLinkedPrimitive(node);
+  clearWidget(node, fieldName);
+  clearLinkedPrimitive(node, fieldName);
 }
 
 function decorateAllKeyWidgets() {
-  for (const className of TARGET_CLASSES) {
+  const classNames = new Set(KEY_CONFIGS.flatMap((config) => [...config.classes]));
+  for (const className of classNames) {
     for (const node of findNodesByClassName(className)) decorateKeyWidget(node);
   }
   app?.graph?.setDirtyCanvas(true, true);
 }
 
 function clearAllWorkflowKeys() {
-  for (const className of TARGET_CLASSES) {
-    for (const node of findNodesByClassName(className)) clearNodeKey(node);
+  const activeConfigs = KEY_CONFIGS.filter((config) => (
+    config.field === XINBAO_KEY_FIELD ? globalKeyConfigured : modelscopeKeyConfigured
+  ));
+  for (const config of activeConfigs) {
+    for (const className of config.classes) {
+      for (const node of findNodesByClassName(className)) clearNodeKey(node, config.field);
+    }
   }
   app?.graph?.setDirtyCanvas(true, true);
 }
@@ -139,7 +159,7 @@ function installWorkflowSerializationGuard() {
   if (!graph || graph.__bananaGlobalKeyGuard || typeof graph.serialize !== "function") return;
   const serialize = graph.serialize;
   graph.serialize = function () {
-    if (globalKeyConfigured) clearAllWorkflowKeys();
+    if (globalKeyConfigured || modelscopeKeyConfigured) clearAllWorkflowKeys();
     return serialize.apply(this, arguments);
   };
   graph.__bananaGlobalKeyGuard = true;
@@ -151,9 +171,10 @@ async function refreshGlobalKeyState() {
     if (!response.ok) return globalKeyConfigured;
     const payload = await response.json();
     globalKeyConfigured = payload?.data?.settings?.api_key_configured === true;
+    modelscopeKeyConfigured = payload?.data?.settings?.modelscope_api_key_configured === true;
     installWorkflowSerializationGuard();
     decorateAllKeyWidgets();
-    if (globalKeyConfigured) clearAllWorkflowKeys();
+    if (globalKeyConfigured || modelscopeKeyConfigured) clearAllWorkflowKeys();
   } catch (error) {
     console.warn(`[${EXTENSION}] 读取全局密钥状态失败`, error);
   }
@@ -177,6 +198,11 @@ app.registerExtension({
         installWorkflowSerializationGuard();
         clearAllWorkflowKeys();
       });
+      window.addEventListener("banana:modelscope-key-saved", () => {
+        modelscopeKeyConfigured = true;
+        installWorkflowSerializationGuard();
+        clearAllWorkflowKeys();
+      });
       window.__bananaGlobalKeyListenerReady = true;
     }
     void refreshGlobalKeyState();
@@ -184,7 +210,8 @@ app.registerExtension({
   nodeCreated(node) {
     setTimeout(() => {
       decorateKeyWidget(node);
-      if (globalKeyConfigured) clearNodeKey(node);
+      if (globalKeyConfigured) clearNodeKey(node, XINBAO_KEY_FIELD);
+      if (modelscopeKeyConfigured) clearNodeKey(node, MODELSCOPE_KEY_FIELD);
     }, 0);
   },
   async afterConfigureGraph() {

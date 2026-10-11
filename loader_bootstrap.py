@@ -42,6 +42,11 @@ def ensure_binaries():
     """检查当前平台对应的二进制文件是否存在，并检测跨平台混装。"""
 
     current_dir = os.path.dirname(os.path.abspath(__file__))
+    # The source loader supports these Python modules without compiled binaries.
+    # Bootstrap/__init__ alone also exist in binary releases and are not enough.
+    source_modules = ("Gemini_Imagen_Generator.py", "logger.py", "config_manager.py", "api_client.py", "image_codec.py", "task_runner.py")
+    if all(os.path.isfile(os.path.join(current_dir, name)) for name in source_modules):
+        return
     system = platform.system().lower()
 
     # 期望的后缀（macOS 和 Linux 统一使用 .so）

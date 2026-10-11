@@ -32,7 +32,7 @@ function ensureQrOverlay() {
     display: none;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: 10001;
   `;
 
   const panel = document.createElement("div");
@@ -50,7 +50,7 @@ function ensureQrOverlay() {
   `;
 
   const title = document.createElement("div");
-  title.textContent = `添加UP主微信：${WECHAT_ID}\n进行购买领取试用`;
+  title.textContent = `添加UP主微信：${WECHAT_ID}\n进行获取领取试用`;
   title.style.fontSize = "16px";
   title.style.fontWeight = "600";
   title.style.whiteSpace = "pre-line";
@@ -94,7 +94,7 @@ function ensureQrOverlay() {
   return overlay;
 }
 
-function showQrOverlay() {
+export function showQrOverlay() {
   const overlay = ensureQrOverlay();
   overlay.style.display = "flex";
 }

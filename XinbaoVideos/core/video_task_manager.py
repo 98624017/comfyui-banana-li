@@ -23,6 +23,7 @@ from config_manager import ConfigManager
 
 from ..core.download import download_binary_with_parallel_ranges, download_video
 from ..core.masking import _clean_url, _mask_text
+from ..core.routing_auth import normalize_video_base_url
 from ..providers.doubao_videos_api import DoubaoVideoClient
 from ..providers.sora_videos_api import SoraVideoClient
 from ..providers.veo_videos_api import VeoVideoClient
@@ -1125,7 +1126,11 @@ class VideoTaskDaemon:
         task_id = _safe_str(task.get("id")).strip()
         provider = _safe_str(task.get("provider")).strip().lower()
         route_choice = _safe_str(task.get("route_choice")).strip()
-        base_url = _safe_str(task.get("base_url")).strip()
+        raw_base_url = _safe_str(task.get("base_url")).strip()
+        base_url = normalize_video_base_url(provider, raw_base_url)
+        if task_id and base_url and base_url != raw_base_url:
+            task["base_url"] = base_url
+            self._history.update_task(task_id, {"base_url": base_url})
 
         if not task_id or not provider or not base_url:
             if task_id:
@@ -1422,7 +1427,11 @@ class VideoTaskDaemon:
             task_id = _safe_str(task.get("id")).strip()
             provider = _safe_str(task.get("provider")).strip().lower()
             route_choice = _safe_str(task.get("route_choice")).strip()
-            base_url = _safe_str(task.get("base_url")).strip()
+            raw_base_url = _safe_str(task.get("base_url")).strip()
+            base_url = normalize_video_base_url(provider, raw_base_url)
+            if task_id and base_url and base_url != raw_base_url:
+                task["base_url"] = base_url
+                self._history.update_task(task_id, {"base_url": base_url})
 
             if not task_id or not base_url:
                 skipped.append(task)
@@ -1443,7 +1452,6 @@ class VideoTaskDaemon:
         # ── Step 2: 每组一次 batch-get ──
         for (api_key, base_url), group_tasks in groups.items():
             task_ids = [_safe_str(t.get("id")).strip() for t in group_tasks]
-            task_map = {_safe_str(t.get("id")).strip(): t for t in group_tasks}
 
             # verify_ssl: 组内有任何一个为 False 则整组 False
             verify_ssl = all(t.get("verify_ssl", True) for t in group_tasks)
@@ -1538,7 +1546,9 @@ class VideoTaskDaemon:
     def _poll_banana_v3_status(self, task, api_key, now):
         """banana_v3 异步生图任务的单任务轮询（batch 失败时的降级路径）。"""
         task_id = task["id"]
-        base_url = task.get("base_url", "https://async.xinbao-ai.com")
+        base_url = normalize_video_base_url(
+            "banana_v3", task.get("base_url", "https://async.xinbao-ai.com")
+        )
         from workflow_parallel import compute_banana_v3_followup_delay
 
         from api_client import GeminiApiClient
@@ -1812,6 +1822,13 @@ class VideoTaskManager:
             self.set_key(provider, cleaned, source="task_center_global")
         return self.settings_snapshot()
 
+    def set_modelscope_key(self, api_key: str) -> Dict[str, Any]:
+        cleaned = self.config_manager.sanitize_api_key(api_key)
+        if not cleaned:
+            raise ValueError("API Key 不能为空")
+        self.config_manager.save_modelscope_api_key(cleaned)
+        return self.settings_snapshot()
+
     def settings_snapshot(self) -> Dict[str, Any]:
         data = self.settings.snapshot()
         api_key = self.config_manager.sanitize_api_key(self.config_manager.load_api_key()) or ""
@@ -1819,6 +1836,12 @@ class VideoTaskManager:
         data["api_key_configured"] = configured
         # 绝不向浏览器返回密钥的任何真实字符。
         data["api_key_masked"] = "*" * len(api_key) if configured else ""
+        modelscope_api_key = self.config_manager.sanitize_api_key(
+            self.config_manager.load_modelscope_api_key()
+        ) or ""
+        modelscope_configured = bool(modelscope_api_key)
+        data["modelscope_api_key_configured"] = modelscope_configured
+        data["modelscope_api_key_masked"] = "*" * len(modelscope_api_key) if modelscope_configured else ""
         return data
 
     def set_auto_download(self, enabled: bool) -> Dict[str, Any]:
@@ -1880,14 +1903,24 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             payload = {}
         if not isinstance(payload, dict):
             return web.json_response({"success": False, "message": "请求必须是 JSON 对象"}, status=400)
-        provider = str(payload.get("provider") or "").strip().lower()
-        api_key = str(payload.get("api_key") or "").strip()
-        route_choice = str(payload.get("route_choice") or "").strip()
-        if not api_key:
+        raw_provider = payload.get("provider")
+        raw_api_key = payload.get("api_key")
+        raw_route_choice = payload.get("route_choice", "")
+        if raw_provider is not None and not isinstance(raw_provider, str):
+            return web.json_response({"success": False, "message": "provider 必须是字符串"}, status=400)
+        if not isinstance(raw_api_key, str) or not raw_api_key.strip():
             return web.json_response({"success": False, "message": "缺少 api_key"}, status=400)
+        if raw_route_choice is not None and not isinstance(raw_route_choice, str):
+            return web.json_response({"success": False, "message": "route_choice 必须是字符串"}, status=400)
+        provider = (raw_provider or "").strip().lower()
+        api_key = raw_api_key.strip()
+        route_choice = (raw_route_choice or "").strip()
         try:
-            if not provider or provider == "global":
+            if not provider or provider in {"global", "xinbao"}:
                 settings = VIDEO_TASK_MANAGER.set_global_key(api_key)
+                return web.json_response({"success": True, "data": settings})
+            if provider == "modelscope":
+                settings = VIDEO_TASK_MANAGER.set_modelscope_key(api_key)
                 return web.json_response({"success": True, "data": settings})
             VIDEO_TASK_MANAGER.set_key(provider, api_key, route_choice=route_choice, source="ui")
             return web.json_response({"success": True})

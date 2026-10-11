@@ -2,16 +2,20 @@ import { app } from "/scripts/app.js";
 
 const EXTENSION = "banana.modelscopeChannelSwitch";
 const TARGET_NODE = "XinbaoModelScopeCaption";
-const CHANNEL_BANANA = "香蕉同款渠道(旧渠道)";
-const CHANNEL_BANANA_LEGACY = "香蕉同款渠道";
+const CHANNEL_XINBAO = "心宝❤新渠道";
 const CHANNEL_MODAO = "魔搭社区";
-const BANANA_DEFAULT_MODEL = "gemini-3-flash-c";
+const XINBAO_DEFAULT_MODEL = "GPT-6 Luna";
+const XINBAO_LEGACY_MODEL_LABELS = {
+  "gemini-3-pro-preview-c": "GPT-6 Sol",
+  "gemini-3-pro-preview-c（较耗时）": "GPT-6 Sol",
+  "gemini-3-flash-c": "GPT-6 Luna",
+};
 
 const RANKING_URL = "https://lmarena.ai/leaderboard/vision";
 
 
 // Store lists globally for this session
-let GLOBAL_BANANA_MODELS = [];
+let GLOBAL_XINBAO_MODELS = [];
 let GLOBAL_MODAO_MODELS = [];
 
 function findWidget(node, name) {
@@ -19,13 +23,13 @@ function findWidget(node, name) {
 }
 
 function normalizeChannel(value) {
-  return value === CHANNEL_MODAO ? CHANNEL_MODAO : CHANNEL_BANANA;
+  return value === CHANNEL_MODAO ? CHANNEL_MODAO : CHANNEL_XINBAO;
 }
 
-function migrateLegacyChannelValue(node, channelWidget) {
+function migrateUnsupportedChannelValue(node, channelWidget) {
   if (!channelWidget) return;
-  if (channelWidget.value !== CHANNEL_BANANA_LEGACY) return;
-  channelWidget.value = CHANNEL_BANANA;
+  if ([CHANNEL_XINBAO, CHANNEL_MODAO].includes(channelWidget.value)) return;
+  channelWidget.value = CHANNEL_XINBAO;
   node?.graph?.setDirtyCanvas(true, true);
 }
 
@@ -36,15 +40,15 @@ function updateModelOptions(node) {
     return;
   }
 
-  migrateLegacyChannelValue(node, channelWidget);
+  migrateUnsupportedChannelValue(node, channelWidget);
 
   // Use captured global lists first, fallback to widget options (if any), then empty
-  const bananaModels = GLOBAL_BANANA_MODELS.length > 0 ? GLOBAL_BANANA_MODELS : (modelWidget.options?.banana_models || []);
+  const xinbaoModels = GLOBAL_XINBAO_MODELS.length > 0 ? GLOBAL_XINBAO_MODELS : (modelWidget.options?.xinbao_models || []);
   const modaoModels = GLOBAL_MODAO_MODELS.length > 0 ? GLOBAL_MODAO_MODELS : (modelWidget.options?.modao_models || []);
 
-  if (bananaModels.length === 0 && modaoModels.length === 0) {
+  if (xinbaoModels.length === 0 && modaoModels.length === 0) {
     // If running in an environment where beforeRegisterNodeDef didn't fire or data missing
-    console.warn("Banana-Li: Model lists not found. Ensure XinbaoModelScopeCaption node definition has banana_models/modao_models.");
+    console.warn("Xinbao: model lists not found. Ensure XinbaoModelScopeCaption defines xinbao_models/modao_models.");
     // We do NOT return here blindly anymore. If we return, we leave the mixed list.
     // But if we have no data, we can't do anything. 
     // We can try to see if modelWidget has values and guess? No, unsafe.
@@ -52,14 +56,21 @@ function updateModelOptions(node) {
   }
 
   const channel = normalizeChannel(channelWidget.value);
-  const values = channel === CHANNEL_MODAO ? modaoModels : bananaModels;
+  const values = channel === CHANNEL_MODAO ? modaoModels : xinbaoModels;
 
   modelWidget.options = modelWidget.options || {};
   modelWidget.options.values = values.slice();
+  if (node.inputs?.some((input) => input.name === "model" && input.link != null)) {
+    return;
+  }
+
+  if (channel === CHANNEL_XINBAO && XINBAO_LEGACY_MODEL_LABELS[modelWidget.value]) {
+    modelWidget.value = XINBAO_LEGACY_MODEL_LABELS[modelWidget.value];
+  }
 
   // Handle current value validation
   if (!values.includes(modelWidget.value)) {
-    const preferred = channel === CHANNEL_BANANA ? BANANA_DEFAULT_MODEL : values[0];
+    const preferred = channel === CHANNEL_XINBAO ? XINBAO_DEFAULT_MODEL : values[0];
     // If preferred is valid, use it. Else use first available. Keep current if somehow valid (already checked via includes, so not valid)
     modelWidget.value = values.includes(preferred) ? preferred : (values[0] || modelWidget.value);
   }
@@ -129,16 +140,16 @@ app.registerExtension({
     // Format is usually: { input: { required: { model: [ "Type", { ...options } ] } } }
     if (nodeData.input?.required?.model?.[1]) {
       const options = nodeData.input.required.model[1];
-      if (options.banana_models && Array.isArray(options.banana_models)) {
-        GLOBAL_BANANA_MODELS = options.banana_models;
+      if (options.xinbao_models && Array.isArray(options.xinbao_models)) {
+        GLOBAL_XINBAO_MODELS = options.xinbao_models;
       }
       if (options.modao_models && Array.isArray(options.modao_models)) {
         GLOBAL_MODAO_MODELS = options.modao_models;
       }
     } else if (nodeData.input?.optional?.model?.[1]) { // Check optional just in case
       const options = nodeData.input.optional.model[1];
-      if (options.banana_models && Array.isArray(options.banana_models)) {
-        GLOBAL_BANANA_MODELS = options.banana_models;
+      if (options.xinbao_models && Array.isArray(options.xinbao_models)) {
+        GLOBAL_XINBAO_MODELS = options.xinbao_models;
       }
       if (options.modao_models && Array.isArray(options.modao_models)) {
         GLOBAL_MODAO_MODELS = options.modao_models;
@@ -156,6 +167,12 @@ app.registerExtension({
     nodeType.prototype.onConfigure = function () {
       const result = onConfigure?.apply(this, arguments);
       enhance(this);
+      return result;
+    };
+    const onConnectionsChange = nodeType.prototype.onConnectionsChange;
+    nodeType.prototype.onConnectionsChange = function () {
+      const result = onConnectionsChange?.apply(this, arguments);
+      updateModelOptions(this);
       return result;
     };
   },
