@@ -10,7 +10,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse, parse_qs
 
 from aiohttp import web
@@ -54,6 +54,20 @@ _PLUGIN_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..
 _HISTORY_PATH = os.path.join(_PLUGIN_ROOT, "history.toml")
 _HISTORY_LOCK_PATH = _HISTORY_PATH + ".lock"
 _HISTORY_BAK_PATH = _HISTORY_PATH + ".bak"
+
+
+def _get_settings_dir() -> str:
+    try:
+        user_dir = folder_paths.get_user_directory()
+    except Exception:
+        user_dir = None
+    if not isinstance(user_dir, str) or not user_dir.strip():
+        user_dir = os.path.join(_PLUGIN_ROOT, "user")
+    return os.path.join(user_dir, "comfyui-banana-pro")
+
+
+_SETTINGS_DIR = _get_settings_dir()
+_SETTINGS_PATH = os.path.join(_SETTINGS_DIR, "video_task_settings.json")
 
 _DEFAULT_MAX_TERMINAL_TASKS = 100
 _DEFAULT_POLL_TICK_SECONDS = 2.0
@@ -413,6 +427,10 @@ class VideoTaskHistoryStore:
             if provider:
                 lines.append(f"provider = {json.dumps(provider)}\n")
 
+            media_type = _safe_str(task.get("media_type")).strip().lower()
+            if media_type in ("image", "video"):
+                lines.append(f"media_type = {json.dumps(media_type)}\n")
+
             model = _safe_str(task.get("model")).strip()
             if model:
                 lines.append(f"model = {json.dumps(model)}\n")
@@ -737,6 +755,17 @@ class VideoTaskKeyCache:
         with self._lock:
             self._cache[(p, r)] = k
 
+    def clear_matching_keys(self, providers: Iterable[str], api_key: str) -> None:
+        """Forget cached copies of a cleared global key without touching other provider keys."""
+        key = (api_key or "").strip()
+        provider_set = {(provider or "").strip().lower() for provider in providers}
+        if not key or not provider_set:
+            return
+        with self._lock:
+            for cache_key, cached_value in list(self._cache.items()):
+                if cache_key[0] in provider_set and cached_value == key:
+                    self._cache.pop(cache_key, None)
+
     def get_key(self, provider: str, route_choice: str = "") -> Optional[str]:
         p = (provider or "").strip().lower()
         r = (route_choice or "").strip()
@@ -761,8 +790,33 @@ class VideoTaskKeyCache:
 class VideoTaskSettings:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._auto_download = False
+        self._auto_download = self._load_auto_download()
         self._download_subfolder = "video_tasks"
+
+    @staticmethod
+    def _load_auto_download() -> bool:
+        try:
+            with open(_SETTINGS_PATH, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            value = data.get("auto_download") if isinstance(data, dict) else None
+            return value if isinstance(value, bool) else True
+        except FileNotFoundError:
+            # First install: enable automatic downloads by default.
+            return True
+        except Exception as exc:
+            logger.warning(f"读取任务中心设置失败，使用默认自动下载：{type(exc).__name__}")
+            return True
+
+    @staticmethod
+    def _save_auto_download(enabled: bool) -> None:
+        try:
+            os.makedirs(_SETTINGS_DIR, exist_ok=True)
+            temporary_path = f"{_SETTINGS_PATH}.tmp.{os.getpid()}"
+            with open(temporary_path, "w", encoding="utf-8") as handle:
+                json.dump({"auto_download": bool(enabled)}, handle, ensure_ascii=False)
+            os.replace(temporary_path, _SETTINGS_PATH)
+        except Exception as exc:
+            raise RuntimeError("保存任务中心设置失败，请检查配置目录的写入权限") from exc
 
     def snapshot(self) -> Dict[str, Any]:
         with self._lock:
@@ -773,6 +827,7 @@ class VideoTaskSettings:
 
     def set_auto_download(self, enabled: bool) -> None:
         with self._lock:
+            self._save_auto_download(bool(enabled))
             self._auto_download = bool(enabled)
 
     def is_auto_download_enabled(self) -> bool:
@@ -890,6 +945,51 @@ def _extract_comfy_api_result_url(payload: Dict[str, object]) -> Optional[str]:
         return hit
 
     return None
+
+
+def _extract_comfy_api_image_urls(payload: Dict[str, object]) -> List[str]:
+    """从 AI 应用轮询响应中提取图片 URL，避免共享视频线路导致类型误判。"""
+    urls: List[str] = []
+
+    def _add(value: object) -> None:
+        if isinstance(value, str):
+            value = value.strip()
+            if value.startswith(("http://", "https://")) and value not in urls:
+                urls.append(_clean_url(value))
+
+    def _add_items(items: object) -> None:
+        if not isinstance(items, list):
+            return
+        for item in items:
+            if isinstance(item, dict):
+                _add(item.get("image_url"))
+                _add(item.get("url"))
+            else:
+                _add(item)
+
+    for obj in (payload, payload.get("data")):
+        if not isinstance(obj, dict):
+            continue
+        _add_items(obj.get("results"))
+        output = obj.get("output")
+        if isinstance(output, dict):
+            _add_items(output.get("images"))
+        for key in ("image_url", "result_url", "url"):
+            _add(obj.get(key))
+
+    return urls
+
+
+def _task_media_type(task: Dict[str, Any]) -> str:
+    """返回任务产物类型；兼容添加 media_type 字段前已创建的 AI 应用任务。"""
+    media_type = _safe_str(task.get("media_type")).strip().lower()
+    if media_type in ("image", "video"):
+        return media_type
+    provider = _safe_str(task.get("provider")).strip().lower()
+    model = _safe_str(task.get("model")).strip().lower()
+    if provider == "banana_v3" or (provider == "comfy_api" and model in {"gqfd", "yjqz", "qwkt"}):
+        return "image"
+    return "video"
 
 
 def _extract_error_message(payload: Dict[str, object]) -> str:
@@ -1183,7 +1283,43 @@ class VideoTaskDaemon:
             self._history.update_task(task_id, fields)
             return
 
-        if status == "completed":
+        if status in ("completed", "succeeded", "success", "done"):
+            if _task_media_type(task) == "image":
+                image_urls = _extract_comfy_api_image_urls(payload)
+                if not image_urls:
+                    completed_seen_at = _safe_int(task.get("completed_seen_at"), 0)
+                    if completed_seen_at <= 0:
+                        completed_seen_at = now
+                    waited = now - completed_seen_at
+                    if waited <= 60:
+                        fields["status"] = "processing"
+                        fields["completed_seen_at"] = completed_seen_at
+                        fields["error"] = "任务已完成但图片结果尚未就绪，继续等待"
+                        fields["next_poll_at"] = now + 3
+                        self._history.update_task(task_id, fields)
+                        return
+                    fields["status"] = "failed"
+                    fields["error"] = "任务已完成但图片结果仍未就绪（等待超时）"
+                    fields["next_poll_at"] = 0
+                    self._history.update_task(task_id, fields)
+                    return
+
+                fields.update({
+                    "status": "success",
+                    "image_urls": image_urls,
+                    "image_count": len(image_urls),
+                    "progress": 100.0,
+                    "error": "",
+                    "next_poll_at": 0,
+                })
+                self._history.update_task(task_id, fields)
+                verify_ssl, bypass_proxy = self._resolve_task_network_options(task)
+                self._download_in_background(
+                    task_id, provider, image_urls,
+                    verify_ssl, bypass_proxy, is_batch=len(image_urls) > 1,
+                )
+                return
+
             video_url = self._extract_video_url(provider, task_id, api_key, base_url, payload, session=session)
             if not video_url:
                 completed_seen_at = _safe_int(task.get("completed_seen_at"), 0)
@@ -1213,11 +1349,8 @@ class VideoTaskDaemon:
             # 立即将 success 状态落盘，用户无需等待下载完成
             self._history.update_task(task_id, fields)
 
-            # 后台异步下载：图片/AI应用总是下载；视频受 auto_download 开关控制
-            _ext = self._guess_ext_from_url(video_url)
-            _is_video = _ext in _VIDEO_EXTENSIONS
-            _should_download = (not _is_video) or self._settings.is_auto_download_enabled()
-            if _should_download:
+            # 后台异步下载：图片总是下载；视频遵循任务中心开关。
+            if self._settings.is_auto_download_enabled():
                 verify_ssl, bypass_proxy = self._resolve_task_network_options(task)
                 self._download_in_background(
                     task_id, provider, [video_url],
@@ -1713,7 +1846,9 @@ class VideoTaskManager:
     def __init__(self, config_manager: Optional[ConfigManager] = None) -> None:
         self.config_manager = config_manager or ConfigManager(base_dir=_PLUGIN_ROOT)
         self.history = VideoTaskHistoryStore()
-        self.keys = VideoTaskKeyCache(global_key_loader=self.config_manager.load_api_key)
+        self.keys = VideoTaskKeyCache(global_key_loader=lambda: self.config_manager.sanitize_api_key(
+            self.config_manager.load_api_key()
+        ))
         self.settings = VideoTaskSettings()
         self.daemon = VideoTaskDaemon(self.history, self.keys, self.settings)
 
@@ -1730,6 +1865,7 @@ class VideoTaskManager:
         route_choice: str = "",
         base_url: str = "",
         api_key_source: str = "node_input",
+        media_type: str = "",
         verify_ssl: Optional[bool] = None,
         bypass_proxy: Optional[bool] = None,
         daemon_poll: bool = True,
@@ -1753,6 +1889,9 @@ class VideoTaskManager:
             "next_poll_at": now,
             "error": "",
         }
+        normalized_media_type = (media_type or "").strip().lower()
+        if normalized_media_type in ("image", "video"):
+            task["media_type"] = normalized_media_type
         if isinstance(verify_ssl, bool) and not verify_ssl:
             task["verify_ssl"] = False
         if isinstance(bypass_proxy, bool) and bypass_proxy:
@@ -1827,6 +1966,12 @@ class VideoTaskManager:
         if not cleaned:
             raise ValueError("API Key 不能为空")
         self.config_manager.save_modelscope_api_key(cleaned)
+        return self.settings_snapshot()
+
+    def clear_global_keys(self) -> Dict[str, Any]:
+        xinbao_key = self.config_manager.sanitize_api_key(self.config_manager.load_api_key()) or ""
+        self.config_manager.clear_api_keys()
+        self.keys.clear_matching_keys(self._GLOBAL_KEY_PROVIDERS, xinbao_key)
         return self.settings_snapshot()
 
     def settings_snapshot(self) -> Dict[str, Any]:
@@ -1929,6 +2074,15 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
             logger.warning(f"任务中心保存 Key 失败: {type(exc).__name__}")
             return web.json_response({"success": False, "message": "保存 Key 失败，请检查输入及本机配置文件的格式和读写权限"}, status=400)
 
+    @prompt_server.routes.post("/banana/video_tasks/key/clear")
+    async def clear_video_task_keys_handler(request):
+        try:
+            settings = VIDEO_TASK_MANAGER.clear_global_keys()
+            return web.json_response({"success": True, "data": settings})
+        except (ValueError, RuntimeError) as exc:
+            logger.warning(f"任务中心清空 Key 失败: {type(exc).__name__}")
+            return web.json_response({"success": False, "message": "清空 Key 失败，请检查本机配置文件的格式和读写权限"}, status=400)
+
     @prompt_server.routes.post("/banana/video_tasks/settings")
     async def set_video_task_settings_handler(request):
         try:
@@ -1938,7 +2092,11 @@ def _ensure_video_task_routes(prompt_server_provider) -> None:
         auto_download = payload.get("auto_download")
         if not isinstance(auto_download, bool):
             auto_download = bool(int(auto_download)) if str(auto_download).isdigit() else False
-        VIDEO_TASK_MANAGER.set_auto_download(bool(auto_download))
+        try:
+            VIDEO_TASK_MANAGER.set_auto_download(bool(auto_download))
+        except RuntimeError as exc:
+            logger.warning(f"任务中心保存设置失败: {type(exc).__name__}")
+            return web.json_response({"success": False, "message": "保存任务中心设置失败，请检查配置目录的写入权限"}, status=400)
         return web.json_response({"success": True, "data": VIDEO_TASK_MANAGER.settings_snapshot()})
 
     @prompt_server.routes.post("/banana/video_tasks/open_local")

@@ -14,6 +14,7 @@ const API_REFRESH = "/banana/video_tasks/refresh";
 const API_DELETE = "/banana/video_tasks/delete";
 const API_CLEAR = "/banana/video_tasks/clear";
 const API_KEY = "/banana/video_tasks/key";
+const API_KEY_CLEAR = "/banana/video_tasks/key/clear";
 const API_SETTINGS = "/banana/video_tasks/settings";
 const API_OPEN_LOCAL = "/banana/video_tasks/open_local";
 const API_PUSH_TO_CANVAS = "/banana/video_tasks/push_to_canvas";
@@ -802,6 +803,15 @@ function injectStyles() {
   font-weight: 600;
   font-size: 13px;
   color: var(--tc-text-label);
+}
+.banana-tc-key-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.banana-tc-key-heading .banana-tc-btn {
+  padding: 3px 9px;
 }
 .banana-tc-key-row {
   display: flex;
@@ -1752,7 +1762,11 @@ function resolveImageUrls(task) {
   const singleUrl = buildViewUrl(task.local_file);
   if (singleUrl) return [singleUrl];
   // 最终回退到远程 URL
-  return task.image_urls || [];
+  if (Array.isArray(task.image_urls) && task.image_urls.length > 0) return task.image_urls;
+  if (isImageTask(task) && typeof task.video_url === "string" && task.video_url.startsWith("http")) {
+    return [task.video_url];
+  }
+  return [];
 }
 
 function isWindowsPlatform() {
@@ -1776,7 +1790,14 @@ async function tryOpenInWindowsExplorer({ taskId, localFile }) {
 }
 
 function isImageTask(task) {
-  return (task.provider || "").toLowerCase() === "banana_v3";
+  const mediaType = String(task?.media_type || "").toLowerCase();
+  if (mediaType === "image") return true;
+  if (mediaType === "video") return false;
+  const provider = String(task?.provider || "").toLowerCase();
+  if (provider === "banana_v3") return true;
+  // Legacy AI app tasks predate media_type and share the comfy_api provider
+  // with video generation. Their app model IDs identify their image output.
+  return provider === "comfy_api" && ["gqfd", "yjqz", "qwkt"].includes(String(task?.model || "").toLowerCase());
 }
 
 function isVideoTask(task) {
@@ -3142,6 +3163,7 @@ function snapshotTask(task) {
   // Use lightweight keys to detect changes — avoid resolveImageUrls per snapshot
   return {
     status: task.status,
+    media_type: task.media_type || "",
     progress: task.progress,
     prompt: task.prompt,
     model: task.model || task.provider || "",
@@ -3158,6 +3180,7 @@ function hasTaskChanged(snap, task) {
   if (!snap) return true;
   return (
     snap.status !== task.status ||
+    snap.media_type !== (task.media_type || "") ||
     snap.progress !== task.progress ||
     snap.prompt !== task.prompt ||
     snap.model !== (task.model || task.provider || "") ||
@@ -3167,6 +3190,68 @@ function hasTaskChanged(snap, task) {
     snap.image_count !== (task.image_count ?? 0) ||
     snap.image_urls_len !== (Array.isArray(task.image_urls) ? task.image_urls.length : 0)
   );
+}
+
+function appendDownloadedVideoThumbnail(preview, task) {
+  const localFile = getFirstLocalFile(task);
+  const videoUrl = buildViewUrl(localFile);
+  if (!videoUrl) return false;
+
+  // The task daemon downloads the finished video in the background and then
+  // writes local_file into history. Use that durable local copy to capture a
+  // real frame for the card instead of leaving the generic play icon there.
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = videoUrl;
+
+  let captured = false;
+  const captureFrame = () => {
+    if (captured || video.readyState < 2 || !video.videoWidth || !video.videoHeight) return;
+    captured = true;
+    try {
+      const scale = Math.min(1, 640 / video.videoWidth, 480 / video.videoHeight);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const thumbnail = document.createElement("img");
+      thumbnail.className = "banana-tc-thumbnail";
+      thumbnail.alt = "视频预览";
+      thumbnail.src = canvas.toDataURL("image/jpeg", 0.82);
+      const play = preview.querySelector(".banana-tc-play-icon");
+      if (play) play.remove();
+      preview.appendChild(thumbnail);
+    } catch (err) {
+      console.debug("任务中心视频缩略图生成失败", err);
+    } finally {
+      video.removeAttribute("src");
+      video.load();
+    }
+  };
+
+  video.addEventListener("loadeddata", () => {
+    const duration = Number(video.duration);
+    const frameTime = Number.isFinite(duration) && duration > 0
+      ? Math.min(0.35, duration * 0.1)
+      : 0;
+    if (frameTime > 0 && Math.abs(video.currentTime - frameTime) > 0.02) {
+      video.addEventListener("seeked", captureFrame, { once: true });
+      try {
+        video.currentTime = frameTime;
+        return;
+      } catch {}
+    }
+    captureFrame();
+  }, { once: true });
+  video.addEventListener("error", () => {
+    video.removeAttribute("src");
+    video.load();
+  }, { once: true });
+  video.load();
+  return true;
 }
 
 function renderCard(task) {
@@ -3283,11 +3368,12 @@ function renderCard(task) {
       preview.appendChild(countBadge);
     }
   } else if (ns === "success" && !isImg) {
-    // Video task success: play icon
+    // Show a frame from the backend-downloaded local video when available.
     const play = document.createElement("div");
     play.className = "banana-tc-play-icon";
     play.textContent = "\u25B6";
     preview.appendChild(play);
+    appendDownloadedVideoThumbnail(preview, task);
   } else if (ns === "failed") {
     const warn = document.createElement("div");
     warn.className = "banana-tc-fail-icon";
@@ -3734,7 +3820,6 @@ function ensureOverlay() {
   keySettingsBtn.addEventListener("click", () => {
     const opening = !settingsDrawerEl?.classList.contains("open");
     settingsDrawerEl?.classList.toggle("open", opening);
-    if (opening) window.setTimeout(() => globalKeyInputEl?.focus(), 0);
   });
 
   const saveDirectoryBtn = document.createElement("button");
@@ -3851,10 +3936,32 @@ function ensureOverlay() {
   const keySection = document.createElement("div");
   keySection.className = "banana-tc-settings-section";
 
+  const keyHeading = document.createElement("div");
+  keyHeading.className = "banana-tc-key-heading";
   const keyTitle = document.createElement("div");
   keyTitle.className = "banana-tc-settings-title";
   keyTitle.textContent = "全局 Key（仅保存在本机，不写入工作流）";
-  keySection.appendChild(keyTitle);
+  keyHeading.appendChild(keyTitle);
+
+  const clearKeysBtn = document.createElement("button");
+  clearKeysBtn.className = "banana-tc-btn danger";
+  clearKeysBtn.textContent = "清空Key";
+  clearKeysBtn.title = "立即清空本机保存的心宝 Key 和魔搭 Key";
+  clearKeysBtn.addEventListener("click", async () => {
+    clearKeysBtn.disabled = true;
+    try {
+      await postJson(API_KEY_CLEAR, {});
+      window.dispatchEvent(new CustomEvent("banana:keys-cleared"));
+      await fetchAndRender();
+      setStatusText("心宝 Key 和魔搭 Key 已从本机清空");
+    } catch (err) {
+      setStatusText(`清空 Key 失败: ${err?.message || err}`);
+    } finally {
+      clearKeysBtn.disabled = false;
+    }
+  });
+  keyHeading.appendChild(clearKeysBtn);
+  keySection.appendChild(keyHeading);
 
   const keyRow = document.createElement("div");
   keyRow.className = "banana-tc-key-row";
@@ -3912,7 +4019,7 @@ function ensureOverlay() {
   modelscopeKeyInput.className = "banana-tc-key-input";
   modelscopeKeyInput.autocomplete = "new-password";
   modelscopeKeyInput.spellcheck = false;
-  modelscopeKeyInput.placeholder = "输入魔搭key（推荐右下角任务中心设置）";
+  modelscopeKeyInput.placeholder = "输入魔搭key（非必须，可不输入）";
   modelscopeKeyInput.addEventListener("focus", () => {
     if (modelscopeKeyInput.value && modelscopeKeyInput.value === modelscopeKeyInput.dataset.masked) {
       modelscopeKeyInput.value = "";
