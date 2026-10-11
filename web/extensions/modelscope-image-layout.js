@@ -63,12 +63,23 @@ app.registerExtension({
     nodeType.prototype.onConfigure = function (info) {
       const result = original?.apply(this, arguments);
       const values = info?.widgets_values;
-      if (!Array.isArray(values) || values.length < 14) return result;
-      if (["文生图", "图片编辑"].includes(values[2])) return result;
-
-      // The retired Z-Image node stored model/custom prompt controls before batch settings.
-      const legacyValues = [values[0], values[1], "文生图", values[10], values[11], values[12], values[13]];
-      const names = ["prompt", "modelscope_api_key", "模式", "batch_size", "max_concurrency", "绕过代理", "禁用SSL验证"];
+      if (!Array.isArray(values)) return result;
+      let names, legacyValues;
+      if (["文生图", "图片编辑"].includes(values[2])) {
+        // Qwen workflows before the model/resolution/ratio controls were added.
+        names = ["prompt", "modelscope_api_key", "模型选择", "模式", "分辨率", "比例", "batch_size", "max_concurrency", "绕过代理", "禁用SSL验证"];
+        if (["1K", "2K"].includes(values[3])) {
+          legacyValues = [values[0], values[1], "Qwen-Image-2.1", ...values.slice(2, 9)];
+        } else {
+          legacyValues = [values[0], values[1], "Qwen-Image-2.1", values[2], "1K", "16:9", ...values.slice(3, 7)];
+        }
+      } else if (values.length >= 14 && values[2] !== "Qwen-Image-2.1") {
+        // The retired Z-Image node stored model/custom prompt controls before batch settings.
+        legacyValues = [values[0], values[1], "Qwen-Image-2.1", "文生图", "1K", "16:9", ...values.slice(10, 14)];
+        names = ["prompt", "modelscope_api_key", "模型选择", "模式", "分辨率", "比例", "batch_size", "max_concurrency", "绕过代理", "禁用SSL验证"];
+      } else {
+        return result;
+      }
       names.forEach((name, index) => {
         const widget = this.widgets?.find((item) => item.name === name);
         if (widget && legacyValues[index] !== undefined) widget.value = legacyValues[index];

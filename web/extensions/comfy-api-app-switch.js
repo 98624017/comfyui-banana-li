@@ -2,6 +2,7 @@ import { app } from "/scripts/app.js";
 
 const EXTENSION = "banana.comfyApiAppSwitch";
 const TARGET_NODE = "XinbaoComfyApiApp";
+const MIN_NODE_WIDTH = 336;
 
 // 全局应用注册表 (从 Python nodeData 捕获)
 let GLOBAL_APP_REGISTRY = {};
@@ -15,7 +16,7 @@ const WIDGET_SLOTS = [
 ];
 
 // 所有 IMAGE input 插槽名
-const IMAGE_SLOTS = ["image_1", "image_2"];
+const IMAGE_SLOTS = ["image_1"];
 
 /**
  * 隐藏 widget (battle-tested 模式, 来源: comfyui_layerstyle/dz_comfy_shared.js)
@@ -83,6 +84,14 @@ function updateAppWidgets(node, applyDefaults = false) {
       // 更新标签
       if (fieldConfig.label) {
         widget.label = fieldConfig.label;
+        if (fieldConfig.type === "text") {
+          widget.options = widget.options || {};
+          widget.options.placeholder = fieldConfig.label;
+          const element = widget.inputEl || widget.element || widget.domEl;
+          const textarea = element?.tagName?.toUpperCase() === "TEXTAREA"
+            ? element : element?.querySelector?.("textarea");
+          if (textarea) textarea.placeholder = fieldConfig.label;
+        }
       }
 
       // combo: 更新选项列表
@@ -110,6 +119,9 @@ function updateAppWidgets(node, applyDefaults = false) {
 
   // 2. 处理 IMAGE input 插槽 (重命名标签)
   if (node.inputs) {
+    // 旧工作流仍可能序列化了废弃的第二图片入口；只移除该入口及其连线。
+    const obsoleteIndex = node.inputs.findIndex((input) => input.name === "image_2");
+    if (obsoleteIndex !== -1) node.removeInput(obsoleteIndex);
     for (const slotName of IMAGE_SLOTS) {
       const inputIdx = node.inputs.findIndex((inp) => inp.name === slotName);
       if (inputIdx === -1) continue;
@@ -126,7 +138,8 @@ function updateAppWidgets(node, applyDefaults = false) {
   }
 
   // 3. 重算节点尺寸
-  node.setSize(node.computeSize());
+  const [width, height] = node.computeSize();
+  node.setSize([Math.max(MIN_NODE_WIDTH, node.size?.[0] || 0, width), height]);
   node.graph?.setDirtyCanvas(true, true);
 }
 

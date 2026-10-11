@@ -5,7 +5,7 @@ const API_TASKS = "/banana/video_tasks";
 const XINBAO_KEY_FIELD = "banana_api_key";
 const MODELSCOPE_KEY_FIELD = "modelscope_api_key";
 const XINBAO_KEY_LABEL = "输入心宝key（推荐右下角任务中心设置）";
-const MODELSCOPE_KEY_LABEL = "输入魔搭key（推荐右下角任务中心设置）";
+const MODELSCOPE_KEY_LABEL = "输入魔搭key（非必须，可不输入）";
 const XINBAO_TARGET_CLASSES = new Set([
   "BananaImageNode",
   "BananaImageNodeV2",
@@ -142,9 +142,9 @@ function decorateAllKeyWidgets() {
   app?.graph?.setDirtyCanvas(true, true);
 }
 
-function clearAllWorkflowKeys() {
+function clearAllWorkflowKeys(force = false) {
   const activeConfigs = KEY_CONFIGS.filter((config) => (
-    config.field === XINBAO_KEY_FIELD ? globalKeyConfigured : modelscopeKeyConfigured
+    force || (config.field === XINBAO_KEY_FIELD ? globalKeyConfigured : modelscopeKeyConfigured)
   ));
   for (const config of activeConfigs) {
     for (const className of config.classes) {
@@ -202,6 +202,11 @@ app.registerExtension({
         modelscopeKeyConfigured = true;
         installWorkflowSerializationGuard();
         clearAllWorkflowKeys();
+      });
+      window.addEventListener("banana:keys-cleared", () => {
+        globalKeyConfigured = false;
+        modelscopeKeyConfigured = false;
+        clearAllWorkflowKeys(true);
       });
       window.__bananaGlobalKeyListenerReady = true;
     }
