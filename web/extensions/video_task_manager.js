@@ -1,5 +1,6 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
+import { showQrOverlay } from "./token-balance.js";
 
 // ─────────────────────────────────────────────────────────────
 // 心宝任务中心 — Phase 1: 卡片式布局 + Tab/状态过滤/排序/搜索
@@ -62,13 +63,14 @@ let statusChipEls = {};
 let footerLeftEl = null;
 let footerKeyEl = null;
 let globalKeyInputEl = null;
+let modelscopeKeyInputEl = null;
 let searchInputEl = null;
 let sortSelectEl = null;
 let autoRefreshCheckboxEl = null;
 let batchToolbarEl = null; // Phase 2 placeholder
 let clearAllBtnEl = null;
-let clearAllImagesBtnEl = null;
 let clearTasksInFlight = false;
+let resetPointsDisplay = null;
 
 // ── Incremental render state ──
 const cardElementMap = new Map(); // taskId → { element, snapshot }
@@ -180,6 +182,8 @@ function injectStyles() {
 /* ── Header ── */
 .banana-tc-header {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
@@ -196,8 +200,19 @@ function injectStyles() {
 }
 .banana-tc-header-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+.banana-tc-header-actions .banana-tc-btn.key-settings {
+  color: #86efac;
+  background: #163c29;
+  border-color: #328451;
+}
+.banana-tc-header-actions .banana-tc-btn.trial-points {
+  color: #ffffff;
+  background: #2b6cb0;
+  border-color: #3b82c4;
 }
 
 /* ── Batch Toolbar (Phase 2 placeholder) ── */
@@ -1651,7 +1666,6 @@ function getFirstLocalFile(task) {
 
 function setClearButtonsDisabled(disabled) {
   if (clearAllBtnEl) clearAllBtnEl.disabled = disabled;
-  if (clearAllImagesBtnEl) clearAllImagesBtnEl.disabled = disabled;
 }
 
 async function clearAllTasks(deleteLocalImages) {
@@ -3513,6 +3527,21 @@ function updateFooterStats() {
   }
 }
 
+function syncMaskedKeyInput(input, configured, mask) {
+  if (!input) return;
+  const previousMask = input.dataset.masked || "";
+  const showingMask = !!previousMask && input.value === previousMask;
+  input.dataset.configured = configured ? "true" : "false";
+  input.dataset.masked = configured ? mask : "";
+  if (configured && (!input.value || showingMask)) {
+    input.type = "text";
+    input.value = mask;
+  } else if (!configured && showingMask) {
+    input.type = "password";
+    input.value = "";
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Fetch & Render
 // ─────────────────────────────────────────────────────────────
@@ -3534,21 +3563,15 @@ async function fetchAndRender() {
     }
 
     // Update key display in footer
+    const xinbaoMask = String(settings.api_key_masked || "");
+    const modelscopeMask = String(settings.modelscope_api_key_masked || "");
     if (footerKeyEl) {
-      const mask = String(settings.api_key_masked || "");
-      footerKeyEl.textContent = settings.api_key_configured ? `Key: ${mask}` : "Key: \u672A\u8BBE\u7F6E";
+      const xinbaoState = settings.api_key_configured ? xinbaoMask : "未设置";
+      const modelscopeState = settings.modelscope_api_key_configured ? modelscopeMask : "未设置";
+      footerKeyEl.textContent = `心宝Key: ${xinbaoState} · 魔搭Key: ${modelscopeState}`;
     }
-    if (globalKeyInputEl && settings.api_key_configured) {
-      const mask = String(settings.api_key_masked || "");
-      const previousMask = globalKeyInputEl.dataset.masked || "";
-      const showingMask = !!previousMask && globalKeyInputEl.value === previousMask;
-      globalKeyInputEl.dataset.configured = "true";
-      globalKeyInputEl.dataset.masked = mask;
-      if (!globalKeyInputEl.value || showingMask) {
-        globalKeyInputEl.type = "text";
-        globalKeyInputEl.value = mask;
-      }
-    }
+    syncMaskedKeyInput(globalKeyInputEl, settings.api_key_configured === true, xinbaoMask);
+    syncMaskedKeyInput(modelscopeKeyInputEl, settings.modelscope_api_key_configured === true, modelscopeMask);
 
     renderCards();
     computeBadge();
@@ -3664,8 +3687,49 @@ function ensureOverlay() {
   const headerActions = document.createElement("div");
   headerActions.className = "banana-tc-header-actions";
 
+  const balanceEl = document.createElement("div");
+  balanceEl.hidden = true;
+  balanceEl.setAttribute("role", "status");
+  balanceEl.style.cssText = "padding:8px 20px;white-space:nowrap;overflow-x:auto;border-bottom:1px solid var(--tc-border);flex-shrink:0;";
+
+  const queryPointsBtn = document.createElement("button");
+  queryPointsBtn.className = "banana-tc-btn header";
+  queryPointsBtn.textContent = "查询积分";
+  let balanceRequestId = 0;
+  resetPointsDisplay = () => {
+    balanceRequestId += 1;
+    balanceEl.hidden = true;
+    balanceEl.textContent = "";
+    queryPointsBtn.disabled = false;
+  };
+  queryPointsBtn.addEventListener("click", async () => {
+    if (queryPointsBtn.disabled) return;
+    const requestId = ++balanceRequestId;
+    queryPointsBtn.disabled = true;
+    balanceEl.hidden = false;
+    balanceEl.textContent = "正在查询心宝积分…";
+    try {
+      // 使用节点同一余额接口，由后台读取已保存的心宝 Key。
+      const payload = await fetchJson("/banana/token_usage?refresh=1", { method: "GET" });
+      if (requestId !== balanceRequestId) return;
+      balanceEl.textContent = String(payload.summary || "未返回积分余额").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(" ｜ ");
+    } catch (error) {
+      if (requestId !== balanceRequestId) return;
+      balanceEl.textContent = `查询积分失败：${error?.message || error}`;
+    } finally {
+      if (requestId === balanceRequestId) queryPointsBtn.disabled = false;
+    }
+  });
+
+  const exchangePointsBtn = document.createElement("button");
+  exchangePointsBtn.className = "banana-tc-btn header";
+  exchangePointsBtn.textContent = "兑换积分/生图明细";
+  exchangePointsBtn.addEventListener("click", () => {
+    window.open("https://task.xinbao-ai.com", "_blank", "noopener,noreferrer");
+  });
+
   const keySettingsBtn = document.createElement("button");
-  keySettingsBtn.className = "banana-tc-btn header primary";
+  keySettingsBtn.className = "banana-tc-btn header key-settings";
   keySettingsBtn.textContent = "设置Key";
   keySettingsBtn.addEventListener("click", () => {
     const opening = !settingsDrawerEl?.classList.contains("open");
@@ -3694,10 +3758,10 @@ function ensureOverlay() {
   clearAllBtnEl.textContent = "清空全部";
   clearAllBtnEl.addEventListener("click", () => void clearAllTasks(false));
 
-  clearAllImagesBtnEl = document.createElement("button");
-  clearAllImagesBtnEl.className = "banana-tc-btn header danger";
-  clearAllImagesBtnEl.textContent = "清空全部及本地图片";
-  clearAllImagesBtnEl.addEventListener("click", () => void clearAllTasks(true));
+  const trialPointsBtn = document.createElement("button");
+  trialPointsBtn.className = "banana-tc-btn header trial-points";
+  trialPointsBtn.textContent = "领取试用/获取积分";
+  trialPointsBtn.addEventListener("click", () => showQrOverlay());
 
   const refreshBtn = document.createElement("button");
   refreshBtn.className = "banana-tc-btn header";
@@ -3710,9 +3774,11 @@ function ensureOverlay() {
   closeBtn.addEventListener("click", () => hideOverlay());
 
   headerActions.appendChild(keySettingsBtn);
+  headerActions.appendChild(queryPointsBtn);
+  headerActions.appendChild(exchangePointsBtn);
   headerActions.appendChild(saveDirectoryBtn);
   headerActions.appendChild(clearAllBtnEl);
-  headerActions.appendChild(clearAllImagesBtnEl);
+  headerActions.appendChild(trialPointsBtn);
   headerActions.appendChild(refreshBtn);
   headerActions.appendChild(closeBtn);
   header.appendChild(title);
@@ -3787,7 +3853,7 @@ function ensureOverlay() {
 
   const keyTitle = document.createElement("div");
   keyTitle.className = "banana-tc-settings-title";
-  keyTitle.textContent = "\u5168\u5C40 API Key\uFF08\u4EC5\u4FDD\u5B58\u5728\u672C\u673A\uFF0C\u4E0D\u5199\u5165\u5DE5\u4F5C\u6D41\uFF09";
+  keyTitle.textContent = "全局 Key（仅保存在本机，不写入工作流）";
   keySection.appendChild(keyTitle);
 
   const keyRow = document.createElement("div");
@@ -3798,7 +3864,7 @@ function ensureOverlay() {
   keyInput.className = "banana-tc-key-input";
   keyInput.autocomplete = "new-password";
   keyInput.spellcheck = false;
-  keyInput.placeholder = "\u8F93\u5165\u5168\u5C40 Key\uFF08\u56FE\u7247/\u89C6\u9891\u901A\u7528\uFF09";
+  keyInput.placeholder = "输入心宝key（用于推理，图像，视频模型）";
   keyInput.addEventListener("focus", () => {
     if (keyInput.value && keyInput.value === keyInput.dataset.masked) {
       keyInput.value = "";
@@ -3820,13 +3886,13 @@ function ensureOverlay() {
     const value = String(keyInput.value || "").trim();
     if (!value || value === keyInput.dataset.masked) return;
     try {
-      const response = await postJson(API_KEY, { provider: "global", api_key: value });
+      const response = await postJson(API_KEY, { provider: "xinbao", api_key: value });
       const mask = String(response?.data?.api_key_masked || "");
       keyInput.dataset.configured = "true";
       keyInput.dataset.masked = mask;
       keyInput.type = "text";
       keyInput.value = mask;
-      setStatusText("\u5168\u5C40 Key \u5DF2\u4FDD\u5B58\u5230\u672C\u673A\uFF0C\u5DE5\u4F5C\u6D41\u4E2D\u7684 Key \u5DF2\u6E05\u7406");
+      setStatusText("心宝 Key 已保存到本机，工作流中的心宝 Key 已清理");
       window.dispatchEvent(new CustomEvent("banana:global-key-saved"));
       void fetchAndRender();
     } catch (err) {
@@ -3837,6 +3903,54 @@ function ensureOverlay() {
   keyRow.appendChild(keyInput);
   keyRow.appendChild(keySaveBtn);
   keySection.appendChild(keyRow);
+
+  const modelscopeKeyRow = document.createElement("div");
+  modelscopeKeyRow.className = "banana-tc-key-row";
+
+  const modelscopeKeyInput = document.createElement("input");
+  modelscopeKeyInput.type = "password";
+  modelscopeKeyInput.className = "banana-tc-key-input";
+  modelscopeKeyInput.autocomplete = "new-password";
+  modelscopeKeyInput.spellcheck = false;
+  modelscopeKeyInput.placeholder = "输入魔搭key（推荐右下角任务中心设置）";
+  modelscopeKeyInput.addEventListener("focus", () => {
+    if (modelscopeKeyInput.value && modelscopeKeyInput.value === modelscopeKeyInput.dataset.masked) {
+      modelscopeKeyInput.value = "";
+      modelscopeKeyInput.type = "password";
+    }
+  });
+  modelscopeKeyInput.addEventListener("blur", () => {
+    if (!modelscopeKeyInput.value && modelscopeKeyInput.dataset.configured === "true") {
+      modelscopeKeyInput.type = "text";
+      modelscopeKeyInput.value = modelscopeKeyInput.dataset.masked || "";
+    }
+  });
+  modelscopeKeyInputEl = modelscopeKeyInput;
+
+  const modelscopeKeySaveBtn = document.createElement("button");
+  modelscopeKeySaveBtn.className = "banana-tc-btn primary";
+  modelscopeKeySaveBtn.textContent = "保存";
+  modelscopeKeySaveBtn.addEventListener("click", async () => {
+    const value = String(modelscopeKeyInput.value || "").trim();
+    if (!value || value === modelscopeKeyInput.dataset.masked) return;
+    try {
+      const response = await postJson(API_KEY, { provider: "modelscope", api_key: value });
+      const mask = String(response?.data?.modelscope_api_key_masked || "");
+      modelscopeKeyInput.dataset.configured = "true";
+      modelscopeKeyInput.dataset.masked = mask;
+      modelscopeKeyInput.type = "text";
+      modelscopeKeyInput.value = mask;
+      setStatusText("魔搭 Key 已保存到本机，工作流中的魔搭 Key 已清理");
+      window.dispatchEvent(new CustomEvent("banana:modelscope-key-saved"));
+      void fetchAndRender();
+    } catch (err) {
+      setStatusText(`保存魔搭 Key 失败: ${err?.message || err}`);
+    }
+  });
+
+  modelscopeKeyRow.appendChild(modelscopeKeyInput);
+  modelscopeKeyRow.appendChild(modelscopeKeySaveBtn);
+  keySection.appendChild(modelscopeKeyRow);
 
   // Settings section
   const settingsSection = document.createElement("div");
@@ -4063,6 +4177,7 @@ function ensureOverlay() {
   // ── Assemble Panel ──
   // Structure: Header -> BatchToolbar(Phase2) -> SettingsDrawer -> Toolbar -> CardsScroll -> Footer
   panelEl.appendChild(header);
+  panelEl.appendChild(balanceEl);
   panelEl.appendChild(batchToolbarEl);
   panelEl.appendChild(settingsDrawerEl);
   panelEl.appendChild(toolbar);
@@ -4133,6 +4248,8 @@ function stopPoller() {
 
 function showOverlay() {
   ensureOverlay();
+  resetPointsDisplay?.();
+  settingsDrawerEl?.classList.remove("open");
   overlayEl.classList.add("open");
   updateBadge(0);
 
@@ -4147,6 +4264,7 @@ function showOverlay() {
 }
 
 function hideOverlay() {
+  resetPointsDisplay?.();
   if (overlayEl) overlayEl.classList.remove("open");
   restartPoller(); // switch to slower interval
 }

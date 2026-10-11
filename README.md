@@ -95,9 +95,9 @@ cd comfyui-banana-li
 
 ## ⚙️ 配置
 
-1) 打开右下角“心宝任务中心”，点击顶部“设置Key”填写全局 API Key。Key 仅保存到本机已忽略的 `config.ini`，前端只显示与 Key 等长的星号，不写入工作流或生成图片元数据。
+1) 打开右下角“心宝任务中心”，点击顶部“设置Key”，可分别填写心宝 Key 与魔搭 Key。两种 Key 都只保存到本机已忽略的 `config.ini`，前端只显示与各自 Key 等长的星号，不写入工作流或生成图片元数据。设置区每次打开任务中心时默认收起。
 
-可手动复制 `config.ini.example` 为本机 `config.ini`。图床代理密钥通过 `[imagebed].api_key` 或 `BANANA_IMAGEBED_API_KEY` 环境变量配置；魔搭专用密钥仍通过节点输入或 `[gemini].modelscope_api_key` 提供。
+可手动复制 `config.ini.example` 为本机 `config.ini`。图床代理密钥通过 `[imagebed].api_key` 或 `BANANA_IMAGEBED_API_KEY` 环境变量配置；魔搭专用密钥也可通过节点输入或 `[gemini].modelscope_api_key` 提供。
 
 旧工作流中的 `XinbaoApiKeyPurge`（全局密钥管理）节点已退休，请删除该节点并在任务中心设置 Key。仓库示例已移除该节点；图片生成节点仍使用原来的 `BananaImageNodeV3` ID，显示名更新为“心宝♥BananaV4”。
 
@@ -116,9 +116,9 @@ cd comfyui-banana-li
 - **心宝❤批量详情图保存**：批量详情图保存 + 拼接预览面板（提示词编辑/多选局部重试/同位置≤10版本对比/手动保存拼接图）。示例：`example_workflows/心宝一键详情页_批量详情图保存.json`。
 - **心宝❤绑定生成** / **BananaLocalCropPreprocess/Paste**：绑定上下文与局部裁剪增强节点，仅在需要绑定链路时接入。
 - **余额扩展**：`web/extensions/token-balance.js` 自动加载，展示可用/已用额度与最近查询时间。
-- **心宝❤魔搭文生图**：`Tongyi-MAI/Z-Image-Turbo`，batch 1-4，支持种子、负面提示词、尺寸/步数/guidance。
+- **魔搭❤免费生图**：固定调用 `Qwen/Qwen-Image-2.1`；支持文生图和图片编辑，按魔搭 API-Inference 异步任务接口提交与查询。
 
-- **心宝❤多模态LLM反推**：多图输入（最多 3 张），可选香蕉/魔搭渠道，生成中文描述，支持温度与 max_tokens 设置。
+- **心宝❤多模态LLM反推**：多图输入（最多 3 张），可选心宝新渠道/魔搭社区，生成中文描述，支持温度与 max_tokens 设置。
 - **心宝❤视频生成**：文本/参考图生成视频节点。新增 `启用工作流并发` 开关（默认关闭）：开启后可与其它并发节点同时发起请求；并发模式下单节点失败不会终止整图（会阻断该节点 VIDEO 输出并在文本端口显示错误）。
 - **心宝❤视频生成（统一模型）**：替代已停用的 Sora/Veo/豆包 facade，模型选择来自 `XinbaoVideos/core/model_mapping.py`。
 - **心宝❤详情页选项**：一键主图/详情 V4 的 prompt、分段解析和追加提示词来自插件内置规则，不再读取托管 TOML。
@@ -146,9 +146,9 @@ cd comfyui-banana-li
 
 ### ModelScope 示例
 
-- 文生图：选择 `心宝❤魔搭文生图` 节点，填入 ModelScope API Key，batch ≤4，按需设置尺寸/步数。
+- 免费生图：选择 `魔搭❤免费生图`，文生图模式只需提示词；图片编辑模式需再连接输入图片。节点固定使用 `Qwen/Qwen-Image-2.1`。
 
-- 图像描述：使用 `心宝❤多模态LLM反推`，可输入最多 3 张图像并选择香蕉/魔搭渠道生成中文描述。
+- 图像描述：使用 `心宝❤多模态LLM反推`，可输入最多 3 张图像并选择心宝新渠道/魔搭社区生成中文描述。
 
 
 ## 通用工具迁移

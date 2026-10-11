@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools Cython
+        pip install setuptools Cython requests Pillow toml
 
     - name: Prepare white-label workspace
       run: |
@@ -39,6 +39,13 @@ jobs:
     - name: Build extensions
       run: |
         python setup.py build_ext --inplace
+
+    - name: Verify compiled Caption streaming
+      env:
+        PYTHONPATH: .
+        PYTHONUTF8: "1"
+        PYTHONIOENCODING: "utf-8"
+      run: python tests/xinbao_modelscope_caption_streaming_test.py --compiled
 
     - name: Clean Source Code
       env:
@@ -98,6 +105,7 @@ jobs:
         rm -rf tools
         rm -f .github/workflows/publish_to_dev.yml
         rm -f .github/workflows/publish_white_label_windows.yml
+        rm -rf .github
         rm -rf .git
         rm -f setup.py
         rm -f history.toml history.toml.lock

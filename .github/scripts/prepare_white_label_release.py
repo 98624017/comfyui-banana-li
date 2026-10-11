@@ -57,6 +57,7 @@ CHECK_RULES = {
     ],
     "web/extensions/modelscope-channel-switch.js": [
         "Ensure XinbaoModelScopeCaption node definition",
+        "Xinbao: model lists not found",
     ],
     "web/extensions/xinbao_file_upload_fix.js": [
         "[Xinbao] File upload fix applied",
@@ -102,6 +103,7 @@ SOURCE_TEXT_REPLACEMENTS = {
     "XinbaoPromptAssistant": "BananaPromptAssistant",
     "[Xinbao] File upload fix applied (Monkey Patch Mode).": "[Banana] File upload fix applied (Monkey Patch Mode).",
     "Ensure XinbaoModelScopeCaption node definition has banana_models/modao_models.": "Ensure 香蕉多模态LLM反推节点定义包含 banana_models/modao_models。",
+    "Xinbao: model lists not found. Ensure XinbaoModelScopeCaption defines xinbao_models/modao_models.": "Ensure 香蕉多模态LLM反推节点定义包含 banana_models/modao_models。",
 }
 
 
@@ -240,6 +242,14 @@ def _remove_root_workflow_jsons(root: Path) -> None:
             path.unlink()
 
 
+def _remove_manual_poll_page(root: Path) -> None:
+    # The standalone polling page embeds a provider URL and API-key form; it is
+    # not part of the white-label node package.
+    poll_path = root / "poll_sora.html"
+    if poll_path.exists():
+        poll_path.unlink()
+
+
 def _iter_release_text_files(root: Path):
     for path in root.rglob("*"):
         if not path.is_file():
@@ -268,6 +278,7 @@ def prepare_white_label_release(root: Path) -> None:
     _rewrite_loader_bootstrap(root)
     _remove_example_workflows(root)
     _remove_root_workflow_jsons(root)
+    _remove_manual_poll_page(root)
     _rewrite_user_visible_source_text(root)
 
 
@@ -292,6 +303,8 @@ def check_white_label_release(root: Path) -> list[str]:
     for path in root.glob("*.json"):
         if _is_root_comfyui_workflow_json(path):
             errors.append(f"{path.relative_to(root).as_posix()} 仍然存在 ComfyUI 工作流 JSON")
+    if (root / "poll_sora.html").exists():
+        errors.append("poll_sora.html 仍包含独立服务轮询页")
 
     for path in _iter_release_text_files(root):
         content = path.read_text(encoding="utf-8")

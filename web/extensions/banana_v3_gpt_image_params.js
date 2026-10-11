@@ -10,11 +10,12 @@ const NOTICE_PADDING_X = 10;
 const NOTICE_PADDING_Y = 4;
 const NOTICE_MAX_LINES = 2;
 
-const GEMINI_WIDGETS = ["aspect_ratio", "image_size", "top_p", "联网搜索"];
-const GPT_WIDGETS = ["size", "custom_width", "custom_height", "quality"];
+const GEMINI_WIDGETS = ["top_p", "联网搜索"];
+const GPT_WIDGETS = ["quality"];
 const PARAMETER_WIDGET_ORDER = [
   // 各模型的主尺寸选项固定在 batch_size 后的同一个位置。
   "aspect_ratio",
+  "image_size",
   "size",
   "custom_width",
   "custom_height",
@@ -22,7 +23,6 @@ const PARAMETER_WIDGET_ORDER = [
   "seed",
   "生成后控制",
   "top_p",
-  "image_size",
   "线路",
   "联网搜索",
   "启用工作流并发",
@@ -257,6 +257,33 @@ function updateWidgets(node) {
   const noticeWidget = ensureNoticeWidget(node);
   normalizeGptWidgetDefaults(node);
 
+  // Keep the same ratio/resolution widgets and sockets for every image model.
+  for (const [name, label] of [["aspect_ratio", "比例"], ["image_size", "分辨率"]]) {
+    const widget = findWidget(node, name);
+    if (!widget) continue;
+    widget.label = label;
+    if (!node.inputs?.some(input => input.name === name && input.link != null)) showWidget(widget);
+  }
+  const size = findWidget(node, "size");
+  if (isGpt && size && !node.inputs?.some(input => input.name === "size" && input.link != null)) {
+    const raw = String(size.value || "auto");
+    const preset = raw.match(/^([124]K)\s+(\d+:\d+)\s+\d+x\d+$/i)
+      || String(size.options?.values?.find(value => String(value).endsWith(" " + raw)) || "").match(/^([124]K)\s+(\d+:\d+)\s+\d+x\d+$/i);
+    if (preset) {
+      setWidgetValue(findWidget(node, "aspect_ratio"), preset[2]);
+      setWidgetValue(findWidget(node, "image_size"), preset[1].toUpperCase());
+      setWidgetValue(size, "auto");
+    }
+  }
+  hideWidget(node, size);
+  // Retain editable legacy custom dimensions only for workflows already using them.
+  const hasCustom = ["custom_width", "custom_height"].some(name => Number(findWidget(node, name)?.value) > 0);
+  for (const name of ["custom_width", "custom_height"]) {
+    const widget = findWidget(node, name);
+    if (isGpt && hasCustom) showWidget(widget);
+    else hideWidget(node, widget);
+  }
+
   for (const name of GEMINI_WIDGETS) {
     const widget = findWidget(node, name);
     if (!widget) continue;
@@ -294,6 +321,17 @@ function wrapWidgetCallback(node, widgetName, callback) {
 
 function enhance(node) {
   wrapWidgetCallback(node, "model_type", updateWidgets);
+  for (const name of ["aspect_ratio", "image_size"]) {
+    wrapWidgetCallback(node, name, (node) => {
+      if (isGptImageModel(findWidget(node, "model_type")?.value)) {
+        for (const [key, value] of [["size", "auto"], ["custom_width", 0], ["custom_height", 0]]) {
+          const widget = findWidget(node, key);
+          if (widget) setWidgetValue(widget, value);
+        }
+      }
+      updateWidgets(node);
+    });
+  }
   wrapWidgetCallback(node, "custom_width", clampCustomSize);
   wrapWidgetCallback(node, "custom_height", clampCustomSize);
   updateWidgets(node);
@@ -332,13 +370,21 @@ app.registerExtension({
       data.properties = {
         ...data.properties,
         bananaV4WidgetOrder: this.widgets?.map((widget) => widget.name) || [],
+        bananaV4SplitSize: true,
       };
       return result;
     };
 
     const onConfigure = nodeType.prototype.onConfigure;
-    nodeType.prototype.onConfigure = function () {
+    nodeType.prototype.onConfigure = function (data) {
       const result = onConfigure?.apply(this, arguments);
+      // In old GPT workflows the hidden ratio had no effect when size was auto.
+      if (!data?.properties?.bananaV4SplitSize
+          && isGptImageModel(findWidget(this, "model_type")?.value)
+          && String(findWidget(this, "size")?.value || "auto").toLowerCase() === "auto"
+          && !this.inputs?.some(input => input.name === "aspect_ratio" && input.link != null)) {
+        setWidgetValue(findWidget(this, "aspect_ratio"), "Auto");
+      }
       enhance(this);
       return result;
     };
