@@ -29,7 +29,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install setuptools Cython requests Pillow toml
+        pip install setuptools Cython requests Pillow toml aiohttp
 
     - name: Prepare white-label workspace
       run: |
@@ -40,12 +40,14 @@ jobs:
       run: |
         python setup.py build_ext --inplace
 
-    - name: Verify compiled Caption streaming
+    - name: Verify compiled runtime behavior
       env:
         PYTHONPATH: .
         PYTHONUTF8: "1"
         PYTHONIOENCODING: "utf-8"
-      run: python tests/xinbao_modelscope_caption_streaming_test.py --compiled
+      run: |
+        python tests/xinbao_modelscope_caption_streaming_test.py --compiled
+        python tests/balance_service_test.py --compiled
 
     - name: Clean Source Code
       env:
