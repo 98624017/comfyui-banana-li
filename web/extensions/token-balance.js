@@ -3,7 +3,7 @@ import { api } from "/scripts/api.js";
 
 const EXTENSION = "banana.tokenBalance";
 const TARGET_NODES = new Set(["BananaImageNode", "BananaImageNodeV2", "BananaImageNodeV3"]);
-const WECHAT_ID = "Li_18727107073";
+const WECHAT_ID = "lixinbaoai";
 const QR_IMAGE_URL = new URL("./xinbao.jpg", import.meta.url).toString();
 const ACTION_BUTTON_DEFS = [
   { key: "wechat", label: "兑换积分\n明细查询" },
