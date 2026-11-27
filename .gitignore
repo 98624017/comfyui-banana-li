@@ -29,6 +29,8 @@ history.toml.lock
 config.ini   
 config.ini.example                      # 正常运行配置（可以填正式 key，但不提交）
 !config.ini.example
+config/result-media-proxy.env
+_r2_upload_credentials.py
 banana_gemini_test.local.ini      # 本地测试专用配置（含测试 key，不提交）
 tests/.env.banana.test
 

@@ -141,6 +141,7 @@ SKIP_MODULES = {
     "test_enhancements",
     "verify_integration",
     "image_uploader",
+    "_r2_upload_credentials",
     "banana_kv_auth",
     "banana_binding",
     "stress_test_gemini",

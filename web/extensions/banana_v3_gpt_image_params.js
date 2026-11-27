@@ -1,9 +1,10 @@
 import { app } from "/scripts/app.js";
+import { canonicalModel, findWidget, isLinked, modelEntry, readModelMetadata, setWidgetValue, updateCombo } from "./model_widgets.js";
 
 const EXTENSION = "banana.bananaV3GptImageParams";
 const TARGET_NODE = "BananaImageNodeV3";
 const BANANA_V3_MIN_NODE_WIDTH = 336;
-const GPT_IMAGE_NOTICE = "gpt-image-2 非 OAI 版为逆向渠道，quality 参数无效，大于 2K 像素可能非原生。推荐使用 gpt-image-2-oai 满参数版。";
+const GPT_IMAGE_NOTICE = "全能图片 G2.6 使用固定质量。可切换到 G2.6 S OAI 选择质量档位。";
 const NOTICE_WIDGET_NAME = "banana-gpt-image-notice";
 const NOTICE_LINE_HEIGHT = 18;
 const NOTICE_PADDING_X = 10;
@@ -41,12 +42,21 @@ const MAX_PIXELS = 8294400;
 const MAX_EDGE = 3840;
 const MAX_RATIO = 3;
 
-function findWidget(node, name) {
-  return node.widgets?.find((w) => w?.name === name);
+function selectedCapability(node, metadata) {
+  if (isLinked(node, "model_type")) return;
+  const model = canonicalModel(metadata, findWidget(node, "model_type")?.value);
+  return modelEntry(metadata?.image, model);
 }
 
-function isGptImageModel(model) {
-  return String(model || "").trim().toLowerCase().startsWith("gpt-image-");
+function restoreModelSelection(node, metadata) {
+  const legacy = selectedCapability(node, metadata);
+  const quality = findWidget(node, "quality");
+  if (!legacy?.selection_model || !metadata.values.includes(legacy.selection_model)
+      || !quality || isLinked(node, "quality")) return;
+  // 先恢复质量再折叠隐藏型号；外接质量只能由执行节点确定，需保留原路由。
+  const value = String(quality.value ?? "").trim().toLowerCase();
+  setWidgetValue(quality, legacy.quality_options.includes(value) ? value : legacy.quality_options[0]);
+  setWidgetValue(findWidget(node, "model_type"), legacy.selection_model);
 }
 
 function normalizeParameterWidgetOrder(node) {
@@ -213,18 +223,10 @@ function clampPair(width, height) {
   return [w, h];
 }
 
-function setWidgetValue(widget, value) {
-  if (!widget || widget.value === value) return;
-  widget.value = value;
-  if (widget.inputEl) widget.inputEl.value = value;
-  if (widget.element) widget.element.value = value;
-  if (widget.domEl) widget.domEl.value = value;
-}
-
 function normalizeGptWidgetDefaults(node) {
   for (const [name, defaultValue] of Object.entries(GPT_WIDGET_DEFAULTS)) {
     const widget = findWidget(node, name);
-    if (!widget) continue;
+    if (!widget || isLinked(node, name)) continue;
     if (widget.value === null || widget.value === undefined || widget.value === "") {
       setWidgetValue(widget, defaultValue);
     }
@@ -251,9 +253,13 @@ function getNodeSize(node) {
   return [width, height];
 }
 
-function updateWidgets(node) {
-  const modelWidget = findWidget(node, "model_type");
-  const isGpt = isGptImageModel(modelWidget?.value);
+function updateWidgets(node, metadata = {}) {
+  restoreModelSelection(node, metadata);
+  const capabilities = selectedCapability(node, metadata);
+  const dynamicModel = isLinked(node, "model_type");
+  const isGpt = capabilities?.kind === "gpt";
+  const isSeedream = capabilities?.kind === "seedream";
+  const supportsQuality = dynamicModel || capabilities?.quality_options.length > 0;
   const noticeWidget = ensureNoticeWidget(node);
   normalizeGptWidgetDefaults(node);
 
@@ -262,10 +268,10 @@ function updateWidgets(node) {
     const widget = findWidget(node, name);
     if (!widget) continue;
     widget.label = label;
-    if (!node.inputs?.some(input => input.name === name && input.link != null)) showWidget(widget);
+    if (!isLinked(node, name)) showWidget(widget);
   }
   const size = findWidget(node, "size");
-  if (isGpt && size && !node.inputs?.some(input => input.name === "size" && input.link != null)) {
+  if (isGpt && size && !["size", "aspect_ratio", "image_size"].some(name => isLinked(node, name))) {
     const raw = String(size.value || "auto");
     const preset = raw.match(/^([124]K)\s+(\d+:\d+)\s+\d+x\d+$/i)
       || String(size.options?.values?.find(value => String(value).endsWith(" " + raw)) || "").match(/^([124]K)\s+(\d+:\d+)\s+\d+x\d+$/i);
@@ -276,31 +282,41 @@ function updateWidgets(node) {
     }
   }
   hideWidget(node, size);
+  if (capabilities) {
+    updateCombo(node, "aspect_ratio", capabilities.aspect_ratios.map(value => value === "auto" ? "Auto" : value), "1:1");
+    updateCombo(node, "image_size", capabilities.image_sizes.filter(value => value !== "auto"), "2K");
+    updateCombo(node, "quality", capabilities.quality_options, "medium");
+  } else if (dynamicModel) {
+    for (const name of ["aspect_ratio", "image_size", "quality"]) {
+      updateCombo(node, name, metadata.inputs?.[name]?.[0]);
+    }
+  }
   // Retain editable legacy custom dimensions only for workflows already using them.
   const hasCustom = ["custom_width", "custom_height"].some(name => Number(findWidget(node, name)?.value) > 0);
   for (const name of ["custom_width", "custom_height"]) {
     const widget = findWidget(node, name);
-    if (isGpt && hasCustom) showWidget(widget);
+    if ((isGpt || dynamicModel) && hasCustom) showWidget(widget);
     else hideWidget(node, widget);
   }
 
   for (const name of GEMINI_WIDGETS) {
     const widget = findWidget(node, name);
     if (!widget) continue;
-    if (isGpt) hideWidget(node, widget);
+    if (isGpt || isSeedream) hideWidget(node, widget);
     else showWidget(widget);
   }
 
   for (const name of GPT_WIDGETS) {
     const widget = findWidget(node, name);
     if (!widget) continue;
-    if (isGpt) showWidget(widget);
+    if (isLinked(node, name)) continue;
+    if (supportsQuality) showWidget(widget);
     else hideWidget(node, widget);
   }
 
   if (isGpt) clampCustomSize(node);
   normalizeParameterWidgetOrder(node);
-  noticeWidget.hidden = !isGpt;
+  noticeWidget.hidden = !isGpt || supportsQuality;
   moveWidgetToEnd(node, noticeWidget);
   // V3 追加了余额操作按钮，默认宽度需至少完整容纳按钮行。
   node.setSize?.(getNodeSize(node));
@@ -319,35 +335,36 @@ function wrapWidgetCallback(node, widgetName, callback) {
   widget.__bananaV3GptWrapped = true;
 }
 
-function enhance(node) {
-  wrapWidgetCallback(node, "model_type", updateWidgets);
+function enhance(node, metadata) {
+  wrapWidgetCallback(node, "model_type", node => updateWidgets(node, metadata));
   for (const name of ["aspect_ratio", "image_size"]) {
     wrapWidgetCallback(node, name, (node) => {
-      if (isGptImageModel(findWidget(node, "model_type")?.value)) {
+      if (selectedCapability(node, metadata)?.kind === "gpt") {
         for (const [key, value] of [["size", "auto"], ["custom_width", 0], ["custom_height", 0]]) {
           const widget = findWidget(node, key);
           if (widget) setWidgetValue(widget, value);
         }
       }
-      updateWidgets(node);
+      updateWidgets(node, metadata);
     });
   }
   wrapWidgetCallback(node, "custom_width", clampCustomSize);
   wrapWidgetCallback(node, "custom_height", clampCustomSize);
-  updateWidgets(node);
-  setTimeout(() => updateWidgets(node), 0);
+  updateWidgets(node, metadata);
+  setTimeout(() => updateWidgets(node, metadata), 0);
 }
 
 app.registerExtension({
   name: EXTENSION,
   beforeRegisterNodeDef(nodeType, nodeData) {
     if (nodeData?.name !== TARGET_NODE) return;
+    const metadata = readModelMetadata(nodeData);
 
     const onCreated = nodeType.prototype.onNodeCreated;
     nodeType.prototype.onNodeCreated = function () {
       const result = onCreated?.apply(this, arguments);
       this.__bananaV3InitialWidgetOrder = this.widgets?.map((widget) => widget.name) || [];
-      enhance(this);
+      enhance(this, metadata);
       return result;
     };
 
@@ -362,6 +379,16 @@ app.registerExtension({
           (positions.get(a.name) ?? Infinity) - (positions.get(b.name) ?? Infinity));
       }
       return configure?.apply(this, arguments);
+    };
+
+    const onConnectionsChange = nodeType.prototype.onConnectionsChange;
+    nodeType.prototype.onConnectionsChange = function (type, index) {
+      const result = onConnectionsChange?.apply(this, arguments);
+      if (type === 1 && ["model_type", "quality"].includes(this.inputs?.[index]?.name)) {
+        // 加载工作流时槽位先于 widgets_values 恢复，待本次配置结束再更新控件。
+        queueMicrotask(() => updateWidgets(this, metadata));
+      }
+      return result;
     };
 
     const onSerialize = nodeType.prototype.onSerialize;
@@ -380,12 +407,12 @@ app.registerExtension({
       const result = onConfigure?.apply(this, arguments);
       // In old GPT workflows the hidden ratio had no effect when size was auto.
       if (!data?.properties?.bananaV4SplitSize
-          && isGptImageModel(findWidget(this, "model_type")?.value)
+          && selectedCapability(this, metadata)?.kind === "gpt"
           && String(findWidget(this, "size")?.value || "auto").toLowerCase() === "auto"
-          && !this.inputs?.some(input => input.name === "aspect_ratio" && input.link != null)) {
+          && !isLinked(this, "aspect_ratio")) {
         setWidgetValue(findWidget(this, "aspect_ratio"), "Auto");
       }
-      enhance(this);
+      enhance(this, metadata);
       return result;
     };
   },

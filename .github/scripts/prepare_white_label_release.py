@@ -23,18 +23,20 @@ MINIMAL_README = """# Banana Image Generator
 - 如需技术支持，请联系当前版本提供方
 """
 
+WECHAT_ID = "lixinbaoai"
+
 CHECK_RULES = {
     "README.md": [
         "李心宝",
         "Bilibili",
         "联系方式",
-        "Li_18727107073",
+        WECHAT_ID,
         "space.bilibili.com",
         "feishu.cn",
     ],
     "web/extensions/token-balance.js": [
         "兑换积分",
-        "Li_18727107073",
+        WECHAT_ID,
         "buy.xinbaoapi.dpdns.org",
         "添加UP主购买Key",
         "UP主二维码",
@@ -131,13 +133,14 @@ def _rewrite_token_balance(root: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = _replace_or_keep_updated(
         text,
-        'const WECHAT_ID = "Li_18727107073";\nconst QR_IMAGE_URL = new URL("./xinbao.jpg", import.meta.url).toString();\nconst ACTION_BUTTON_DEFS = [\n  { key: "wechat", label: "兑换积分\\n明细查询" },\n  { key: "query", label: "余额查询\\n1R=60积分" },\n  { key: "qr", label: "获取积分\\n领取试用" },\n];',
+        f'const WECHAT_ID = "{WECHAT_ID}";\n'
+        'const QR_IMAGE_URL = new URL("./xinbao.jpg", import.meta.url).toString();\nconst ACTION_BUTTON_DEFS = [\n  { key: "wechat", label: "兑换积分\\n明细查询" },\n  { key: "query", label: "余额查询\\n1R=60积分" },\n  { key: "qr", label: "获取积分\\n领取试用" },\n];',
         'const WECHAT_ID = "";\nconst QR_IMAGE_URL = "";\nconst ACTION_BUTTON_DEFS = [\n  { key: "query", label: "查询余额" },\n];',
         path=path,
     )
     text = _replace_or_keep_updated(
         text,
-        '  title.textContent = `添加UP主微信：${WECHAT_ID}\\n进行购买领取试用`;',
+        '  title.textContent = `添加UP主微信：${WECHAT_ID}\\n进行获取领取试用`;',
         '  title.textContent = "当前版本未提供二维码";',
         path=path,
     )

@@ -52,7 +52,7 @@ Banana 是一个强大的 ComfyUI 自定义节点,集成了 Google NanoBanana �
 
 - **GitHub Issues**: [提交问题和建议](https://github.com/98624017/comfyui-banana-li/issues)
 - **Bilibili**: [@心宝](https://space.bilibili.com/470042957) - 视频教程和更新动态
-- **获取公开资料及API 购买**: <img src="https://img.shields.io/badge/WeChat-07C160?logo=wechat&logoColor=white" align="center" style="vertical-align: middle;"> Li_18727107073
+- **获取公开资料及API 购买**: <img src="https://img.shields.io/badge/WeChat-07C160?logo=wechat&logoColor=white" align="center" style="vertical-align: middle;"> lixinbaoai
 
 ## ✨ 功能特性
 
@@ -99,7 +99,9 @@ cd comfyui-banana-li
 
 任务中心支持一键清空两种全局 Key。视频自动下载默认开启，开关设置保存在 ComfyUI 用户目录下，重启后恢复用户选择；此前已保存为关闭的设置保持关闭。
 
-可手动复制 `config.ini.example` 为本机 `config.ini`。图床代理密钥通过 `[imagebed].api_key` 或 `BANANA_IMAGEBED_API_KEY` 环境变量配置；魔搭专用密钥也可通过节点输入或 `[gemini].modelscope_api_key` 提供。
+图床优先直连 `uguu.se`，失败时回退到 R2。插件发布包自带上传凭据和 Worker 地址，安装后即可使用。
+
+需要手动设置模型服务时，可复制 `config.ini.example` 为本机 `config.ini`。魔搭专用密钥也可通过节点输入或 `[gemini].modelscope_api_key` 提供。
 
 旧工作流中的 `XinbaoApiKeyPurge`（全局密钥管理）节点已退休，请删除该节点并在任务中心设置 Key。仓库示例已移除该节点；图片生成节点仍使用原来的 `BananaImageNodeV3` ID，显示名更新为“心宝♥BananaV4”。
 
